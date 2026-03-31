@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 import litellm
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from signalagent.core.config import SignalConfig
 from signalagent.core.errors import AIError
@@ -19,6 +19,8 @@ except AttributeError:
 
 class AIResponse(BaseModel):
     """Unified response from any LLM provider."""
+    model_config = ConfigDict(extra="forbid")
+
     content: str
     model: str
     provider: str

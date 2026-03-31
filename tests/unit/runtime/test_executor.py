@@ -75,6 +75,7 @@ class TestExecutor:
         assert result.content == ""
         assert result.error is not None
         assert "LLM exploded" in result.error
+        assert result.error_type == "Exception"
 
     @pytest.mark.asyncio
     async def test_run_tracks_token_usage(self):

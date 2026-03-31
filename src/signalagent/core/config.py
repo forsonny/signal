@@ -6,7 +6,7 @@ import importlib.resources
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from signalagent.core.errors import ConfigError, InstanceError
 from signalagent.core.models import Profile
@@ -14,12 +14,16 @@ from signalagent.core.models import Profile
 
 class AIConfig(BaseModel):
     """AI layer configuration."""
+    model_config = ConfigDict(extra="forbid")
+
     default_model: str = "anthropic/claude-sonnet-4-20250514"
     api_key_env: str = "ANTHROPIC_API_KEY"
 
 
 class SignalConfig(BaseModel):
     """Top-level Signal instance configuration."""
+    model_config = ConfigDict(extra="forbid")
+
     profile_name: str
     ai: AIConfig = Field(default_factory=AIConfig)
 

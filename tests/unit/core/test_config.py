@@ -103,6 +103,16 @@ class TestFindInstance:
         found = find_instance(tmp_path)
         assert found == instance_dir
 
+    def test_finds_in_parent_dir(self, tmp_path):
+        instance_dir = tmp_path / ".signal"
+        create_instance(instance_dir, "blank")
+
+        child_dir = tmp_path / "sub" / "deep" / "nested"
+        child_dir.mkdir(parents=True)
+
+        found = find_instance(child_dir)
+        assert found == instance_dir
+
     def test_raises_if_not_found(self, tmp_path):
         import pytest
         with pytest.raises(InstanceError, match="No Signal instance found"):

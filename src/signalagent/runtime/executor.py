@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 from signalagent.core.models import Profile
 
@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 @runtime_checkable
 class AILayerProtocol(Protocol):
     """Protocol for the AI layer so executor doesn't depend on concrete class."""
-    async def complete(self, messages: list[dict], **kwargs) -> "AIResponseLike": ...
+    async def complete(
+        self,
+        messages: list[dict],
+        model: Optional[str] = None,
+    ) -> Any: ...
 
 
 @dataclass
@@ -22,6 +26,7 @@ class ExecutorResult:
     """Result of an executor run."""
     content: str
     error: Optional[str] = None
+    error_type: Optional[str] = None  # Exception class name, e.g. "AIError"
     input_tokens: int = 0
     output_tokens: int = 0
     cost: float = 0.0
@@ -63,4 +68,8 @@ class Executor:
             )
         except Exception as e:
             logger.error("Executor error: %s", e, exc_info=True)
-            return ExecutorResult(content="", error=str(e))
+            return ExecutorResult(
+                content="",
+                error=str(e),
+                error_type=type(e).__name__,
+            )

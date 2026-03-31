@@ -1,10 +1,12 @@
 """Core data models for Signal profiles and agent configuration."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PrimeConfig(BaseModel):
     """Configuration for the Prime Agent from a profile."""
+    model_config = ConfigDict(extra="forbid")
+
     identity: str = (
         "You are a helpful AI assistant. The user will define "
         "your purpose and add specialist agents over time."
@@ -13,6 +15,8 @@ class PrimeConfig(BaseModel):
 
 class MicroAgentConfig(BaseModel):
     """Configuration for a micro-agent from a profile."""
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     skill: str
     talks_to: list[str] = Field(default_factory=list)
@@ -24,11 +28,15 @@ class MicroAgentConfig(BaseModel):
 
 class PluginsConfig(BaseModel):
     """Available plugins configuration."""
+    model_config = ConfigDict(extra="forbid")
+
     available: list[str] = Field(default_factory=list)
 
 
 class HeartbeatConfig(BaseModel):
     """Heartbeat trigger configuration from a profile."""
+    model_config = ConfigDict(extra="forbid")
+
     clock_triggers: list[dict] = Field(default_factory=list)
     event_triggers: list[dict] = Field(default_factory=list)
     condition_triggers: list[dict] = Field(default_factory=list)
@@ -36,6 +44,8 @@ class HeartbeatConfig(BaseModel):
 
 class Profile(BaseModel):
     """A Signal profile -- defines what an instance becomes."""
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     description: str = ""
     version: str = "1.0.0"
