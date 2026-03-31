@@ -1,0 +1,13 @@
+name: blank
+description: Empty Signal instance -- build your own
+version: 1.0.0
+
+prime:
+  identity: >
+    You are a helpful AI assistant. The user will define
+    your purpose and add specialist agents over time.
+
+micro_agents: []
+
+plugins:
+  available: [file_system, bash, web_search]
