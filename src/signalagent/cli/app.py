@@ -18,6 +18,9 @@ def _register_commands() -> None:
     """
     import signalagent.cli.init_cmd  # noqa: F401
     import signalagent.cli.talk_cmd  # noqa: F401
+    from signalagent.cli.memory_cmd import memory_app
+
+    app.add_typer(memory_app, name="memory")
 
 
 _register_commands()
