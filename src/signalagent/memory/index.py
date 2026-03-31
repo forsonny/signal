@@ -1,0 +1,191 @@
+"""SQLite metadata index for memory retrieval."""
+
+from __future__ import annotations
+
+import json
+import math
+from datetime import datetime, timezone
+from pathlib import Path
+
+import aiosqlite
+
+from signalagent.core.models import Memory
+
+_CREATE_TABLE = """\
+CREATE TABLE IF NOT EXISTS memory_index (
+    id            TEXT PRIMARY KEY,
+    agent         TEXT NOT NULL,
+    type          TEXT NOT NULL,
+    tags          TEXT NOT NULL,
+    confidence    REAL NOT NULL,
+    version       INTEGER NOT NULL,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    accessed_at   TEXT NOT NULL,
+    access_count  INTEGER NOT NULL DEFAULT 0,
+    file_path     TEXT NOT NULL,
+    superseded_by TEXT,
+    is_archived   INTEGER NOT NULL DEFAULT 0
+);
+"""
+
+_UPSERT = """\
+INSERT INTO memory_index
+    (id, agent, type, tags, confidence, version,
+     created_at, updated_at, accessed_at, access_count,
+     file_path, superseded_by, is_archived)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    agent=excluded.agent, type=excluded.type, tags=excluded.tags,
+    confidence=excluded.confidence, version=excluded.version,
+    updated_at=excluded.updated_at, accessed_at=excluded.accessed_at,
+    access_count=excluded.access_count, file_path=excluded.file_path,
+    superseded_by=excluded.superseded_by, is_archived=excluded.is_archived
+"""
+
+
+class MemoryIndex:
+    """Async SQLite index for memory metadata.
+
+    Stores metadata only -- never content. Enables fast lookup
+    by tags, agent, and type with recency-based scoring.
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        self._db_path = str(db_path)
+        self._db: aiosqlite.Connection | None = None
+
+    async def initialize(self) -> None:
+        """Create the index table if it doesn't exist."""
+        self._db = await aiosqlite.connect(self._db_path)
+        self._db.row_factory = aiosqlite.Row
+        await self._db.execute(_CREATE_TABLE)
+        await self._db.commit()
+
+    async def upsert(self, memory: Memory, file_path: str | Path) -> None:
+        """Insert or update an index entry from a Memory object."""
+        assert self._db is not None
+        await self._db.execute(
+            _UPSERT,
+            (
+                memory.id,
+                memory.agent,
+                memory.type.value,
+                json.dumps(memory.tags),
+                memory.confidence,
+                memory.version,
+                memory.created.isoformat(),
+                memory.updated.isoformat(),
+                memory.accessed.isoformat(),
+                memory.access_count,
+                str(file_path),
+                memory.superseded_by,
+                0,
+            ),
+        )
+        await self._db.commit()
+
+    async def remove(self, memory_id: str) -> None:
+        """Delete an entry from the index."""
+        assert self._db is not None
+        await self._db.execute(
+            "DELETE FROM memory_index WHERE id = ?", (memory_id,)
+        )
+        await self._db.commit()
+
+    async def get(self, memory_id: str) -> dict | None:
+        """Fetch a single index row by ID."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            "SELECT * FROM memory_index WHERE id = ?", (memory_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def search(
+        self,
+        tags: list[str] | None = None,
+        agent: str | None = None,
+        memory_type: str | None = None,
+        limit: int = 10,
+        include_archived: bool = False,
+    ) -> list[dict]:
+        """Tag-match + recency-scored search. Returns ranked results."""
+        assert self._db is not None
+
+        conditions: list[str] = []
+        params: list[str | int] = []
+
+        if not include_archived:
+            conditions.append("m.is_archived = 0")
+
+        if agent:
+            conditions.append("m.agent = ?")
+            params.append(agent)
+
+        if memory_type:
+            conditions.append("m.type = ?")
+            params.append(memory_type)
+
+        if tags:
+            placeholders = ", ".join("?" for _ in tags)
+            conditions.append(
+                f"EXISTS (SELECT 1 FROM json_each(m.tags) jt"
+                f" WHERE jt.value IN ({placeholders}))"
+            )
+            params.extend(tags)
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        query = f"SELECT * FROM memory_index m WHERE {where}"
+
+        cursor = await self._db.execute(query, params)
+        rows = await cursor.fetchall()
+        results = [dict(row) for row in rows]
+
+        now = datetime.now(timezone.utc)
+        query_tags = set(tags) if tags else set()
+
+        for row in results:
+            row_tags = set(json.loads(row["tags"]))
+
+            if query_tags:
+                tag_score = len(row_tags & query_tags) / len(query_tags)
+            else:
+                tag_score = 0.0
+
+            accessed = datetime.fromisoformat(row["accessed_at"])
+            if accessed.tzinfo is None:
+                accessed = accessed.replace(tzinfo=timezone.utc)
+            days_since = max((now - accessed).total_seconds() / 86400, 0)
+            recency_score = 1.0 / (1.0 + days_since / 30.0)
+
+            frequency_score = min(
+                math.log(row["access_count"] + 1) / 10.0, 1.0
+            )
+
+            row["_score"] = (
+                tag_score * 0.4
+                + recency_score * 0.3
+                + frequency_score * 0.2
+                + row["confidence"] * 0.1
+            )
+
+        results.sort(key=lambda r: r["_score"], reverse=True)
+        return results[:limit]
+
+    async def touch(self, memory_id: str) -> None:
+        """Update accessed_at and increment access_count."""
+        assert self._db is not None
+        now = datetime.now(timezone.utc).isoformat()
+        await self._db.execute(
+            "UPDATE memory_index SET accessed_at = ?,"
+            " access_count = access_count + 1 WHERE id = ?",
+            (now, memory_id),
+        )
+        await self._db.commit()
+
+    async def close(self) -> None:
+        """Close the database connection."""
+        if self._db:
+            await self._db.close()
+            self._db = None
