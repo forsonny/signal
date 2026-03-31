@@ -7,6 +7,7 @@ build/
 .signal/
 .superpowers/
 .maker-checkpoints/
+docs/superpowers/
 *.db
 .env
 
