@@ -59,3 +59,14 @@ class MessageType(str, Enum):
     REPORT = "report"
     TRIGGER = "trigger"
     MEMORY_WRITE = "memory_write"
+
+
+class MemoryType(str, Enum):
+    """Type of memory stored by an agent."""
+
+    IDENTITY = "identity"
+    LEARNING = "learning"
+    PATTERN = "pattern"
+    OUTCOME = "outcome"
+    CONTEXT = "context"
+    SHARED = "shared"

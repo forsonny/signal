@@ -1,6 +1,10 @@
 """Core data models for Signal profiles and agent configuration."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from signalagent.core.types import MemoryType
 
 
 class PrimeConfig(BaseModel):
@@ -54,3 +58,24 @@ class Profile(BaseModel):
     micro_agents: list[MicroAgentConfig] = Field(default_factory=list)
     plugins: PluginsConfig = Field(default_factory=PluginsConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
+
+
+class Memory(BaseModel):
+    """Atomic unit of agent knowledge."""
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    agent: str
+    type: MemoryType
+    tags: list[str] = Field(default_factory=list)
+    content: str
+    confidence: float = Field(ge=0.0, le=1.0, default=0.5)
+    version: int = 1
+    created: datetime
+    updated: datetime
+    accessed: datetime
+    access_count: int = 0
+    changelog: list[str] = Field(default_factory=list)
+    supersedes: list[str] = Field(default_factory=list)
+    superseded_by: str | None = None
+    consolidated_from: list[str] = Field(default_factory=list)

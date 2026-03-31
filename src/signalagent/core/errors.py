@@ -15,3 +15,7 @@ class AIError(SignalError):
 
 class InstanceError(SignalError):
     """Instance management error -- init, start, stop failures."""
+
+
+class MemoryStoreError(SignalError):
+    """Memory storage, index, or retrieval failure."""

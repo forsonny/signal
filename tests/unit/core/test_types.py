@@ -4,6 +4,7 @@ from signalagent.core.types import (
     TaskStatus,
     TaskPriority,
     MessageType,
+    MemoryType,
 )
 
 
@@ -60,3 +61,19 @@ class TestMessageType:
         assert MessageType.RESULT == "result"
         assert MessageType.ESCALATION == "escalation"
         assert MessageType.MEMORY_WRITE == "memory_write"
+
+
+class TestMemoryType:
+    def test_values(self):
+        assert MemoryType.IDENTITY == "identity"
+        assert MemoryType.LEARNING == "learning"
+        assert MemoryType.PATTERN == "pattern"
+        assert MemoryType.OUTCOME == "outcome"
+        assert MemoryType.CONTEXT == "context"
+        assert MemoryType.SHARED == "shared"
+
+    def test_is_string(self):
+        assert isinstance(MemoryType.IDENTITY, str)
+
+    def test_all_six_values(self):
+        assert len(MemoryType) == 6

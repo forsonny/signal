@@ -1,11 +1,18 @@
+from datetime import datetime, timezone
+
+import pytest
 import yaml
+from pydantic import ValidationError
+
 from signalagent.core.models import (
     Profile,
     PrimeConfig,
     MicroAgentConfig,
     PluginsConfig,
     HeartbeatConfig,
+    Memory,
 )
+from signalagent.core.types import MemoryType
 
 
 class TestPrimeConfig:
@@ -90,3 +97,89 @@ plugins:
         assert profile.name == "test"
         assert len(profile.micro_agents) == 1
         assert profile.micro_agents[0].can_spawn_subs is True
+
+
+class TestMemory:
+    def test_construction(self):
+        now = datetime.now(timezone.utc)
+        mem = Memory(
+            id="mem_abc12345",
+            agent="prime",
+            type=MemoryType.IDENTITY,
+            tags=["python", "preferences"],
+            content="User prefers explicit error handling.",
+            confidence=0.8,
+            version=1,
+            created=now,
+            updated=now,
+            accessed=now,
+        )
+        assert mem.id == "mem_abc12345"
+        assert mem.type == MemoryType.IDENTITY
+        assert mem.confidence == 0.8
+        assert mem.content == "User prefers explicit error handling."
+
+    def test_defaults(self):
+        now = datetime.now(timezone.utc)
+        mem = Memory(
+            id="mem_abc12345",
+            agent="prime",
+            type=MemoryType.IDENTITY,
+            tags=[],
+            content="test",
+            created=now,
+            updated=now,
+            accessed=now,
+        )
+        assert mem.confidence == 0.5
+        assert mem.version == 1
+        assert mem.access_count == 0
+        assert mem.changelog == []
+        assert mem.supersedes == []
+        assert mem.superseded_by is None
+        assert mem.consolidated_from == []
+
+    def test_confidence_rejects_above_one(self):
+        now = datetime.now(timezone.utc)
+        with pytest.raises(ValidationError):
+            Memory(
+                id="mem_abc12345",
+                agent="prime",
+                type=MemoryType.IDENTITY,
+                tags=[],
+                content="test",
+                confidence=1.5,
+                created=now,
+                updated=now,
+                accessed=now,
+            )
+
+    def test_confidence_rejects_below_zero(self):
+        now = datetime.now(timezone.utc)
+        with pytest.raises(ValidationError):
+            Memory(
+                id="mem_abc12345",
+                agent="prime",
+                type=MemoryType.IDENTITY,
+                tags=[],
+                content="test",
+                confidence=-0.1,
+                created=now,
+                updated=now,
+                accessed=now,
+            )
+
+    def test_extra_fields_rejected(self):
+        now = datetime.now(timezone.utc)
+        with pytest.raises(ValidationError):
+            Memory(
+                id="mem_abc12345",
+                agent="prime",
+                type=MemoryType.IDENTITY,
+                tags=[],
+                content="test",
+                created=now,
+                updated=now,
+                accessed=now,
+                bogus="field",
+            )
