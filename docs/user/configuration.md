@@ -9,20 +9,21 @@ Running `signal init` creates a `.signal/` directory in your current working dir
   config.yaml          # Instance configuration
   data/
     runtime/           # Transient runtime state
-    sessions/          # Session records (Phase 2+)
-    tasks/             # Task queue (Phase 2+)
+    sessions/          # Session records (Phase 6+)
+    tasks/             # Task queue (Phase 3+)
   memory/
-    prime/             # Prime agent memory (Phase 2+)
-    micro/             # Micro-agent memory (Phase 2+)
-    shared/            # Shared memory pool (Phase 2+)
+    prime/             # Prime agent memories, organized by type subdirectory
+    micro/             # Micro-agent memories, organized by agent/type subdirectory
+    shared/            # Cross-agent shared memories
+    index.db           # SQLite metadata index for fast memory retrieval
   triggers/
-    static/            # Static trigger definitions (Phase 3+)
-    dynamic/           # Dynamic trigger definitions (Phase 3+)
+    static/            # Static trigger definitions (Phase 7+)
+    dynamic/           # Dynamic trigger definitions (Phase 7+)
   plugins/             # Installed plugin data (Phase 4+)
   logs/                # Log files
 ```
 
-Subdirectories marked Phase 2+ are created at init time but are not used until those phases ship.
+The `memory/` directory is active as of Phase 2. Memories are stored as individual markdown files with YAML frontmatter. The SQLite index (`index.db`) stores metadata for fast tag and recency-based search -- content stays in the files.
 
 ## config.yaml Format
 

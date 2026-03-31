@@ -5,7 +5,7 @@
 | Phase | Name | Status | What it adds |
 |-------|------|--------|--------------|
 | 1 | Skeleton | Complete | init, talk, AI layer, config, profiles |
-| 2 | Memory Foundation | Planned | Atomic files, SQLite index, basic retrieval |
+| 2 | Memory Foundation | Complete | Atomic files, SQLite index, tag+recency retrieval, CLI |
 | 3 | Multi-Agent | Planned | Prime routing, micro-agents, message bus |
 | 4 | Tool Execution + Hooks | Planned | Agentic loop, plugins, sub-agents, hook pipeline |
 | 5 | Prompt Construction | Planned | Token budgeting, smart retrieval, overflow handling |

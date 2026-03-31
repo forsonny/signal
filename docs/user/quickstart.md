@@ -33,7 +33,22 @@ Signal sends your message to the LLM and prints the response to stdout.
 - `signal init` read the `blank` profile, created `.signal/`, and wrote `config.yaml` with default settings.
 - `signal talk` located the instance by walking up the directory tree, loaded the config, built a minimal prompt using the profile's Prime identity, called the LLM via LiteLLM, and printed the response.
 
-In Phase 1, every `talk` call is stateless -- no memory, no session history. That changes in later phases.
+## Working with Memory
+
+Signal stores memories as atomic markdown files in `.signal/memory/`. You can search and inspect them:
+
+```bash
+# Search all memories
+uv run signal memory search
+
+# Search by tags
+uv run signal memory search --tags "python,preferences"
+
+# View a specific memory
+uv run signal memory inspect mem_a8f3c291
+```
+
+Memories are indexed in SQLite for fast lookup and ranked by tag relevance, recency, access frequency, and confidence. Currently, memories are created programmatically -- agent-driven memory creation comes in Phase 3.
 
 ## Next Steps
 

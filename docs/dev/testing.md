@@ -25,7 +25,7 @@ uv run pytest -k "executor"
 uv run pytest -v -x tests/unit/ai/
 ```
 
-Current test count: **48 tests, all passing**.
+Current test count: **116 tests, all passing**.
 
 ---
 
@@ -38,10 +38,16 @@ tests/
     core/              -- tests for types.py, models.py, config.py, errors.py
     ai/                -- tests for ai/layer.py (LiteLLM mocked)
     runtime/           -- tests for runtime/executor.py (AILayer mocked via Protocol)
+    memory/            -- tests for memory/storage.py, index.py, engine.py
   integration/         -- CLI end-to-end tests
 ```
 
 The `unit/` tree mirrors `src/signalagent/`. If you add `src/signalagent/core/foo.py`, its tests go in `tests/unit/core/test_foo.py`.
+
+**Memory test layer isolation:**
+- `test_storage.py` -- filesystem only, uses `tmp_path`, no SQLite
+- `test_index.py` -- in-memory SQLite only (`:memory:`), no filesystem
+- `test_engine.py` -- both layers together via `tmp_path`
 
 Integration tests exercise the CLI commands using `typer.testing.CliRunner`. They do not call real LLM APIs.
 

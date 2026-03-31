@@ -8,9 +8,9 @@ src/signalagent/
   py.typed             -- PEP 561 marker, signals type-checker support to tooling
 
   core/
-    types.py           -- enums: AgentType, AgentStatus, TaskStatus, TaskPriority, MessageType
-    errors.py          -- exception hierarchy: SignalError -> ConfigError, AIError, InstanceError
-    models.py          -- Pydantic models: Profile, PrimeConfig, MicroAgentConfig
+    types.py           -- enums: AgentType, AgentStatus, TaskStatus, TaskPriority, MessageType, MemoryType
+    errors.py          -- exception hierarchy: SignalError -> ConfigError, AIError, InstanceError, MemoryStoreError
+    models.py          -- Pydantic models: Profile, PrimeConfig, MicroAgentConfig, Memory
     config.py          -- SignalConfig, AIConfig, load/save helpers, instance management
 
   ai/
@@ -19,10 +19,16 @@ src/signalagent/
   runtime/
     executor.py        -- Executor with error boundary, ExecutorResult, AILayerProtocol
 
+  memory/
+    storage.py         -- MemoryStorage: atomic markdown file I/O with YAML frontmatter
+    index.py           -- MemoryIndex: async SQLite metadata index with tag+recency scoring
+    engine.py          -- MemoryEngine: orchestrator (create, store, search, inspect, delete, rebuild)
+
   cli/
     app.py             -- Typer app, command registration, main() entry point
     init_cmd.py        -- `signal init` command: scaffold instance directory and config
     talk_cmd.py        -- `signal talk` command: async bridge to executor
+    memory_cmd.py      -- `signal memory` command group: search and inspect subcommands
 
   profiles/
     blank.yaml         -- built-in blank profile (bundled with the package)
@@ -34,6 +40,7 @@ tests/
     core/              -- tests for types, models, config (no I/O mocking needed)
     ai/                -- AI layer tests (litellm.acompletion patched with AsyncMock)
     runtime/           -- executor tests (AILayer injected via Protocol mock)
+    memory/            -- memory tests: storage (tmp_path), index (in-memory SQLite), engine (both)
 
   integration/         -- CLI end-to-end tests using typer.testing.CliRunner
 ```
@@ -42,11 +49,10 @@ tests/
 
 ## Modules Planned but Not Yet Created
 
-The following packages appear in Phase 2+ plans. None of their files exist yet. Do not create stubs or placeholders for them unless work on that phase has started.
+The following packages appear in Phase 3+ plans. None of their files exist yet. Do not create stubs or placeholders for them unless work on that phase has started.
 
 | Module | Planned phase | Purpose |
 |--------|---------------|---------|
-| `memory/` | Phase 2 | Atomic file writes, SQLite index, basic retrieval |
 | `comms/` | Phase 3 | Inter-agent message bus, message routing |
 | `heartbeat/` | Phase 7 | Autonomous trigger daemon (cron, events, conditions) |
 | `tools/` | Phase 4 | Agentic tool execution, sub-agent dispatch |

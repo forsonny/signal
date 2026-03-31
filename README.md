@@ -8,9 +8,9 @@ Signal gives you a single agent, Prime, that you talk to directly. Behind Prime 
 
 ## Current Status
 
-**Phase 1 of 10 complete.** The minimal skeleton is in place: `signal init` and `signal talk` work end-to-end. No memory, no heartbeat, no sessions yet -- just the foundation everything else builds on.
+**Phase 2 of 10 complete.** Agents remember things between tasks. Memories are atomic markdown files with YAML frontmatter, indexed in SQLite for tag+recency retrieval. `signal memory search` and `signal memory inspect` let you query what agents know.
 
-See the [roadmap](docs/superpowers/plans/2026-03-31-phase1-skeleton.md) for what is coming.
+See the [roadmap](docs/dev/roadmap.md) for what is coming.
 
 ## Quickstart
 

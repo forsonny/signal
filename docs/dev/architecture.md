@@ -8,29 +8,44 @@ This is the target architecture. The current implementation covers Phase 1 only 
 
 ---
 
-## Phase 1 Architecture (What Exists Now)
+## Current Architecture (Phase 2)
 
-Phase 1 is a single-agent skeleton: one executor, one AI layer, one CLI, one config system.
+Phase 2 adds persistent memory to the Phase 1 skeleton. Agents can now store and retrieve knowledge between tasks.
 
-There is no multi-agent routing, no persistent memory, and no heartbeat daemon. These are Phase 2+ concerns.
+There is no multi-agent routing and no heartbeat daemon yet. These are Phase 3+ concerns.
 
 **Components built:**
 
-- `cli/` -- Typer-based CLI with `signal init` and `signal talk` commands
+- `cli/` -- Typer-based CLI with `signal init`, `signal talk`, and `signal memory` commands
 - `core/config` -- YAML-backed config, instance management, profile loading
-- `core/models` -- Pydantic models for all data structures
+- `core/models` -- Pydantic models: Profile, Memory, and supporting types
+- `core/types` -- Enums: AgentType, AgentStatus, TaskStatus, TaskPriority, MessageType, MemoryType
 - `ai/layer` -- LiteLLM wrapper, async completion, response normalization
 - `runtime/executor` -- Single-turn executor with error boundary
+- `memory/storage` -- Atomic markdown file I/O with YAML frontmatter
+- `memory/index` -- Async SQLite metadata index with tag+recency scoring
+- `memory/engine` -- Orchestrator tying storage and index together
 
 **Module dependency diagram:**
 
 ```
-cli/ --> core/config --> core/models
+cli/ --> core/config --> core/models --> core/types
  |                         |
  +--> runtime/executor --> ai/layer --> LiteLLM
+ |
+ +--> memory/engine --> memory/storage --> core/models
+                    --> memory/index   --> core/models
 ```
 
-No module imports upward. `core/` has no runtime dependencies. `ai/` depends only on `core/`. `runtime/` depends on `core/` and `ai/` via Protocol. `cli/` orchestrates everything.
+No module imports upward. `core/` has no runtime dependencies. `memory/` depends only on `core/`. `cli/` orchestrates everything.
+
+### Memory Architecture
+
+The memory system uses three layers:
+
+- **MemoryStorage** -- Reads/writes Memory objects as markdown files with YAML frontmatter. Each memory is one file. Path routing: shared memories go to `shared/`, prime memories to `prime/{type}/`, micro-agent memories to `micro/{agent}/{type}/`. Writes are atomic via temp file + `os.replace()`.
+- **MemoryIndex** -- Async SQLite index storing metadata only (never content). Tags stored as JSON, queried via `json_each()`. Search results are scored in Python: tag overlap (40%) + recency (30%) + access frequency (20%) + confidence (10%).
+- **MemoryEngine** -- Orchestrates storage and index. Provides the public API: `create_memory()`, `store()`, `search()`, `inspect()`, `delete()`, `rebuild_index()`. File-first-then-index write ordering for crash safety.
 
 ---
 

@@ -68,6 +68,74 @@ uv run signal talk "summarize this project"
 
 ---
 
+## signal memory search
+
+Search stored memories by tags, agent, and type.
+
+```
+signal memory search [OPTIONS]
+```
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tags TEXT` | None | Comma-separated tags to filter by. Matches memories that have at least one overlapping tag. |
+| `--agent TEXT` | None | Filter to memories owned by this agent (e.g., `prime`, `code-review`). |
+| `--type TEXT` | None | Filter by memory type (`identity`, `learning`, `pattern`, `outcome`, `context`, `shared`). |
+| `--limit INTEGER` | `10` | Maximum number of results to return. |
+
+**Behavior:**
+
+- Searches the SQLite memory index for matching memories.
+- Results are ranked by a composite score: tag overlap (40%), recency (30%), access frequency (20%), confidence (10%).
+- Displays a table with columns: ID, Agent, Type, Tags, Confidence, Updated.
+- Prints "No memories found." if no memories match the filters.
+
+**Examples:**
+
+```bash
+# Show all memories (most recent first)
+uv run signal memory search
+
+# Search by tags
+uv run signal memory search --tags "python,errors"
+
+# Filter by agent and type
+uv run signal memory search --agent prime --type identity
+```
+
+---
+
+## signal memory inspect
+
+View full details of a specific memory by ID.
+
+```
+signal memory inspect MEMORY_ID
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `MEMORY_ID` | The memory ID to inspect (e.g., `mem_a8f3c291`). |
+
+**Behavior:**
+
+- Loads the memory from disk via the index.
+- Displays all metadata fields (agent, type, tags, confidence, version, timestamps, access count, changelog) and the full content.
+- Updates the memory's access statistics (accessed_at and access_count).
+- Exits with an error if the memory ID is not found.
+
+**Examples:**
+
+```bash
+uv run signal memory inspect mem_a8f3c291
+```
+
+---
+
 ## Coming in Future Phases
 
-Many commands are planned but not yet implemented. These include agent management, memory operations, session handling, heartbeat control, worktrees, forks, and more. This reference will be updated as each phase ships.
+Many commands are planned but not yet implemented. These include agent management, session handling, heartbeat control, worktrees, forks, and more. This reference will be updated as each phase ships.
