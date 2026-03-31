@@ -92,3 +92,40 @@ class TestTalkCommand:
             or "error" in combined.lower()
             or combined == ""  # exit_code check above is sufficient guard
         )
+
+
+class TestEndToEnd:
+    """Full pipeline: init -> talk with mocked LLM."""
+
+    def test_init_then_talk(self, tmp_path, monkeypatch, mock_ai_response):
+        monkeypatch.chdir(tmp_path)
+
+        # Step 1: init
+        init_result = runner.invoke(app, ["init", "--profile", "blank"])
+        assert init_result.exit_code == 0
+        assert (tmp_path / ".signal").exists()
+
+        # Step 2: talk with mocked LLM
+        with patch(
+            "litellm.acompletion",
+            new_callable=AsyncMock,
+            return_value=mock_ai_response,
+        ):
+            talk_result = runner.invoke(app, ["talk", "hello"])
+
+        assert talk_result.exit_code == 0
+        assert "Signal, ready to help" in talk_result.stdout
+
+    def test_talk_shows_error_on_ai_failure(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        runner.invoke(app, ["init"])
+
+        with patch(
+            "litellm.acompletion",
+            new_callable=AsyncMock,
+            side_effect=Exception("Provider unavailable"),
+        ):
+            result = runner.invoke(app, ["talk", "hello"])
+
+        assert result.exit_code == 0
+        assert "error" in result.stdout.lower()
