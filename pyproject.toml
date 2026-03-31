@@ -1,6 +1,6 @@
 [project]
 name = "signalagent"
-version = "0.1.0"
+dynamic = ["version"]
 description = "AI agent runtime framework"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,6 +19,9 @@ signal = "signalagent.cli.app:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/signalagent/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/signalagent"]
