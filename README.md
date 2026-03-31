@@ -38,4 +38,4 @@ uv run signal talk "hello"
 
 ## License
 
-MIT
+Apache 2.0 -- see [LICENSE](LICENSE).
