@@ -8,7 +8,7 @@ Signal gives you a single agent, Prime, that you talk to directly. Behind Prime 
 
 ## Current Status
 
-**Phase 2 of 10 complete.** Agents remember things between tasks. Memories are atomic markdown files with YAML frontmatter, indexed in SQLite for tag+recency retrieval. `signal memory search` and `signal memory inspect` let you query what agents know.
+**Phase 3 of 10 complete.** Prime routes user messages to specialist micro-agents via LLM-based routing. Each micro-agent has its own skill-based system prompt and makes independent AI calls. An in-process message bus carries typed messages between agents with `talks_to` permission enforcement. When no specialist matches, Prime handles the request directly.
 
 See the [roadmap](docs/dev/roadmap.md) for what is coming.
 
