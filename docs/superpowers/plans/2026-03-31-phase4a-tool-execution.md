@@ -1539,13 +1539,16 @@ git commit -m "feat: add AgenticRunner with tool-calling loop, error recovery, a
 
 ---
 
-### Task 8: Refactor MicroAgent to use RunnerProtocol
+### Task 8: Refactor MicroAgent, update bootstrap and dependent tests
 
-MicroAgent drops its direct `ai` reference and delegates all LLM interaction to the runner.
+MicroAgent drops its direct `ai` reference and delegates all LLM interaction to the runner. Bootstrap wires the tool pipeline. All dependent tests updated in the same task so every commit passes.
 
 **Files:**
 - Modify: `src/signalagent/agents/micro.py:1-56`
 - Modify: `tests/unit/agents/test_micro.py:1-105`
+- Modify: `src/signalagent/runtime/bootstrap.py:1-57`
+- Modify: `tests/unit/runtime/test_bootstrap.py:1-108`
+- Modify: `tests/unit/agents/test_prime.py:1-254`
 
 - [ ] **Step 1: Update test_micro.py for runner-based MicroAgent**
 
@@ -1728,32 +1731,7 @@ class MicroAgent(BaseAgent):
 Run: `uv run pytest tests/unit/agents/test_micro.py -v`
 Expected: All PASS (6 tests)
 
-- [ ] **Step 5: Run all tests to check for breakage**
-
-Run: `uv run pytest -x -q`
-Expected: Some tests in `test_prime.py` and `test_bootstrap.py` will fail because they construct `MicroAgent(config=..., ai=...)`. These will be fixed in Task 9.
-
-Note the specific failures but do not fix them here -- Task 9 handles bootstrap and dependent test updates.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/signalagent/agents/micro.py tests/unit/agents/test_micro.py
-git commit -m "refactor: MicroAgent delegates to RunnerProtocol, drops direct ai reference"
-```
-
----
-
-### Task 9: Update bootstrap and dependent tests
-
-Wire the tool pipeline in bootstrap. Update `test_prime.py` and `test_bootstrap.py` to work with the runner-based MicroAgent.
-
-**Files:**
-- Modify: `src/signalagent/runtime/bootstrap.py:1-57`
-- Modify: `tests/unit/runtime/test_bootstrap.py:1-108`
-- Modify: `tests/unit/agents/test_prime.py:1-254`
-
-- [ ] **Step 1: Update bootstrap.py**
+- [ ] **Step 5: Update bootstrap.py**
 
 Replace `src/signalagent/runtime/bootstrap.py`:
 
@@ -1850,7 +1828,7 @@ async def bootstrap(
     return executor, bus, host
 ```
 
-- [ ] **Step 2: Update test_bootstrap.py**
+- [ ] **Step 6: Update test_bootstrap.py**
 
 Replace `tests/unit/runtime/test_bootstrap.py`:
 
@@ -1919,7 +1897,7 @@ def profile_no_micros() -> Profile:
 
 
 @pytest.fixture
-def profile_with_tools(tmp_path) -> Profile:
+def profile_with_tools() -> Profile:
     return Profile(
         name="test",
         prime=PrimeConfig(identity="You are a test prime."),
@@ -2009,7 +1987,7 @@ class TestBootstrap:
         assert result.error is None
 ```
 
-- [ ] **Step 3: Update test_prime.py to use runner-based micro-agents**
+- [ ] **Step 7: Update test_prime.py to use runner-based micro-agents**
 
 In `tests/unit/agents/test_prime.py`, the `StubMicro` class is a `BaseAgent` subclass, not a `MicroAgent`, so it doesn't need a runner and is unaffected. However, the file imports `MicroAgent` and `MicroAgentConfig` -- verify these are not used in the test class construction. If `MicroAgent` is imported but unused, remove the import.
 
@@ -2020,21 +1998,21 @@ from signalagent.agents.micro import MicroAgent
 
 If this import exists but `MicroAgent` is not directly constructed in the test file, remove it to prevent import errors. The `StubMicro` class extending `BaseAgent` directly is correct for these tests.
 
-- [ ] **Step 4: Run all tests**
+- [ ] **Step 8: Run all tests**
 
 Run: `uv run pytest -x -q`
 Expected: All tests pass
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/signalagent/runtime/bootstrap.py tests/unit/runtime/test_bootstrap.py tests/unit/agents/test_prime.py
-git commit -m "feat: wire tool pipeline in bootstrap, update tests for runner-based micro-agents"
+git add src/signalagent/agents/micro.py tests/unit/agents/test_micro.py src/signalagent/runtime/bootstrap.py tests/unit/runtime/test_bootstrap.py tests/unit/agents/test_prime.py
+git commit -m "feat: MicroAgent delegates to runner, wire tool pipeline in bootstrap"
 ```
 
 ---
 
-### Task 10: Update docs, bump version, verify end-to-end
+### Task 9: Update docs, bump version, verify end-to-end
 
 Update architecture docs, project structure, roadmap, README, CHANGELOG, and VERSION.
 
@@ -2134,7 +2112,7 @@ git commit -m "chore: bump version to 0.4.0 for Phase 4a tool execution"
 - (e) FileSystemTool: Task 5
 - (f) Two-tier iteration limits: Task 2 (models), Task 9 (bootstrap clamping)
 - (g) MicroAgent delegates to RunnerProtocol: Task 8
-- (h) End-to-end signal talk: Task 9 (test_micro_agent_uses_tool)
+- (h) End-to-end signal talk: Task 8 (test_micro_agent_uses_tool)
 - (i) Protocols in core/: Task 1 (AILayerProtocol), Task 6 (RunnerProtocol, ToolExecutor)
 - (j) Multiple tool calls per iteration: Task 7 (test_multiple_tool_calls_in_one_response)
 
@@ -2145,9 +2123,9 @@ All 10 done-when criteria covered.
 **Type consistency check:**
 - `ToolCallRequest` used consistently across Task 2 (model), Task 3 (AIResponse), Task 7 (runner tests), Task 9 (bootstrap tests)
 - `ToolResult` used consistently across Task 2 (model), Task 4 (FakeTool), Task 5 (FileSystemTool), Task 7 (runner tests), Task 9 (bootstrap executor)
-- `RunnerResult` defined in Task 7, used in Task 8 (test_micro.py), Task 9 tests
+- `RunnerResult` defined in Task 7, used in Task 8 (test_micro.py, test_bootstrap.py)
 - `RunnerProtocol` defined in Task 6, used by MicroAgent in Task 8
-- `MicroAgent(config=, runner=)` signature consistent between Task 8 (implementation) and Task 9 (bootstrap)
-- `AgenticRunner.__init__(ai=, tool_executor=, tool_schemas=, max_iterations=)` consistent between Task 7 (implementation) and Task 9 (bootstrap wiring)
-- `ToolRegistry.get_schemas(names)` consistent between Task 4 (implementation) and Task 9 (bootstrap call)
-- `load_builtin_tool(name, instance_dir)` consistent between Task 5 (implementation) and Task 9 (bootstrap call)
+- `MicroAgent(config=, runner=)` signature consistent between Task 8 (implementation and bootstrap)
+- `AgenticRunner.__init__(ai=, tool_executor=, tool_schemas=, max_iterations=)` consistent between Task 7 (implementation) and Task 8 (bootstrap wiring)
+- `ToolRegistry.get_schemas(names)` consistent between Task 4 (implementation) and Task 8 (bootstrap call)
+- `load_builtin_tool(name, instance_dir)` consistent between Task 5 (implementation) and Task 8 (bootstrap call)
