@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock
 from signalagent.ai.layer import AIResponse
 from signalagent.core.config import SignalConfig
 from signalagent.core.models import (
-    Profile, PrimeConfig, MicroAgentConfig, PluginsConfig, ToolCallRequest,
+    Profile,
+    PrimeConfig,
+    MicroAgentConfig,
+    PluginsConfig,
+    HooksConfig,
+    ToolCallRequest,
 )
 from signalagent.core.types import PRIME_AGENT
 from signalagent.runtime.bootstrap import bootstrap
@@ -42,6 +47,19 @@ def profile_with_tools():
         name="test",
         prime=PrimeConfig(identity="You are a test prime."),
         plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(name="researcher", skill="Research files",
+                             talks_to=["prime"], plugins=["file_system"]),
+        ],
+    )
+
+@pytest.fixture
+def profile_with_hooks():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        hooks=HooksConfig(active=["log_tool_calls"]),
         micro_agents=[
             MicroAgentConfig(name="researcher", skill="Research files",
                              talks_to=["prime"], plugins=["file_system"]),
@@ -98,3 +116,28 @@ class TestBootstrap:
         result = await executor.run("read my notes")
         assert result.content == "Found: important data"
         assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_hooks_log_tool_calls(self, tmp_path, config, profile_with_hooks, monkeypatch):
+        """Tool calls are logged to JSONL when log_tool_calls hook is active."""
+        (tmp_path / "notes.txt").write_text("data")
+        tc = ToolCallRequest(id="call_1", name="file_system",
+                             arguments={"operation": "read", "path": "notes.txt"})
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("researcher"),
+            _make_ai_response("", tool_calls=[tc]),
+            _make_ai_response("Got it"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_hooks)
+        result = await executor.run("read notes")
+        assert result.content == "Got it"
+
+        # Verify log file was written
+        import json
+        log_file = tmp_path / "logs" / "tool_calls.jsonl"
+        assert log_file.exists()
+        entry = json.loads(log_file.read_text().strip())
+        assert entry["tool_name"] == "file_system"
+        assert entry["blocked"] is False

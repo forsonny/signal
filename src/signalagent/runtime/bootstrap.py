@@ -9,6 +9,9 @@ from signalagent.ai.layer import AILayer
 from signalagent.comms.bus import MessageBus
 from signalagent.core.config import SignalConfig
 from signalagent.core.models import Profile, ToolResult
+from signalagent.hooks.builtins import load_builtin_hook
+from signalagent.hooks.executor import HookExecutor
+from signalagent.hooks.registry import HookRegistry
 from signalagent.runtime.executor import Executor
 from signalagent.runtime.runner import AgenticRunner
 from signalagent.tools.builtins import load_builtin_tool
@@ -32,9 +35,8 @@ async def bootstrap(
         if tool is not None:
             registry.register(tool)
 
-    # Tool executor -- thin wrapper shared by all runners. Registry is
-    # read-only after this point. 4b replaces with hook-aware version.
-    async def tool_executor(tool_name: str, arguments: dict) -> ToolResult:
+    # Inner tool executor -- registry lookup + error handling
+    async def inner_executor(tool_name: str, arguments: dict) -> ToolResult:
         tool = registry.get(tool_name)
         if tool is None:
             return ToolResult(output="", error=f"Unknown tool: {tool_name}")
@@ -42,6 +44,16 @@ async def bootstrap(
             return await tool.execute(**arguments)
         except Exception as e:
             return ToolResult(output="", error=str(e))
+
+    # Hook registry
+    hook_registry = HookRegistry()
+    for hook_name in profile.hooks.active:
+        hook = load_builtin_hook(hook_name, instance_dir)
+        if hook is not None:
+            hook_registry.register(hook)
+
+    # Wrap inner executor with hooks
+    tool_executor = HookExecutor(inner=inner_executor, registry=hook_registry)
 
     global_max = config.tools.max_iterations
 
