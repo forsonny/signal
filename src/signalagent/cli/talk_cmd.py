@@ -27,14 +27,12 @@ async def _async_talk(message: str, instance_dir: Path) -> str:
     modules that pull in litellm -- deferring their import means 'signal --help'
     and 'signal init' don't pay that cost.
     """
-    from signalagent.ai.layer import AILayer  # deferred: heavyweight import
     from signalagent.core.config import load_config, load_profile
-    from signalagent.runtime.executor import Executor
+    from signalagent.runtime.bootstrap import bootstrap  # deferred: heavyweight import
 
     config = load_config(instance_dir / "config.yaml")
     profile = load_profile(config.profile_name)
-    ai = AILayer(config)
-    executor = Executor(ai=ai, profile=profile)
+    executor, _bus, _host = await bootstrap(instance_dir, config, profile)
 
     result = await executor.run(message)
 
