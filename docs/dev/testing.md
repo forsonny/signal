@@ -25,7 +25,7 @@ uv run pytest -k "executor"
 uv run pytest -v -x tests/unit/ai/
 ```
 
-Current test count: **247 tests, all passing**.
+Current test count: **257 tests, all passing**.
 
 ---
 
@@ -255,3 +255,11 @@ class BlockHook:
 **HookExecutor tests** use an `AsyncMock` as the inner executor and combine AllowHook/BlockHook instances to verify: allow-through, block-before-execution, after-hooks-fire-on-block, and fail-open-on-hook-error.
 
 **LogToolCallsHook tests** use `tmp_path` for the JSONL log file and verify that each tool call produces a JSON line with the expected fields (tool_name, arguments, duration, blocked).
+
+### Sub-Agent Tests
+
+Sub-agent tests use a mock runner factory to control the sub-agent's execution without needing real AI calls. The factory returns a mock runner that produces a predetermined RunnerResult when called.
+
+**SpawnSubAgentTool tests** verify: successful spawn with result passthrough, tool inheritance (parent tools minus spawn), sub-agent name defaults, and error handling when the runner raises.
+
+**End-to-end spawn chain tests** wire bootstrap with a mock AI layer that returns spawn_sub_agent tool calls, verifying the full pipeline from parent agent through per-agent executor to sub-agent execution and result return.

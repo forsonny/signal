@@ -36,6 +36,7 @@ src/signalagent/
     registry.py        -- ToolRegistry: name-to-implementation lookup, LiteLLM-format schema generation
     builtins/
       file_system.py   -- FileSystemTool: read/write/list, scoped to workspace, size-capped reads
+      spawn_sub_agent.py -- SpawnSubAgentTool: ephemeral sub-agent delegation via tool call
 
   hooks/
     protocol.py        -- Hook protocol: before_tool_call (block/allow) and after_tool_call (observe)
@@ -69,6 +70,7 @@ tests/
     agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
     comms/             -- tests for comms/bus.py (MessageBus)
     tools/             -- tests for tools/protocol.py, registry.py, builtins/file_system.py
+      builtins/        -- tests for tools/builtins/spawn_sub_agent.py
     hooks/             -- tests for hooks/registry.py, executor.py
       builtins/        -- tests for hooks/builtins/log_tool_calls.py
 

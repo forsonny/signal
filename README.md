@@ -8,7 +8,7 @@ Signal gives you a single agent, Prime, that you talk to directly. Behind Prime 
 
 ## Current Status
 
-**Phase 4b of 10 complete.** A hook pipeline now intercepts every tool call with before/after lifecycle events. Before hooks can block a call; after hooks observe results. The built-in LogToolCallsHook writes JSONL logs with timing and blocked status. Underneath, agents still call tools via the agentic loop -- the runner calls AI, executes tool calls, feeds results back, and repeats until done. Prime routes to specialist micro-agents via the message bus.
+**Phase 4c of 10 complete.** Micro-agents can now spawn ephemeral sub-agents for task delegation. Sub-agents inherit their parent's tools, execute to completion, and return results as normal tool output. The hook pipeline still intercepts every tool call -- including sub-agent tool calls -- with before/after lifecycle events. Prime routes to specialist micro-agents via the message bus.
 
 See the [roadmap](docs/dev/roadmap.md) for what is coming.
 

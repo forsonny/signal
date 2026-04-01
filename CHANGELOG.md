@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-03-31
+
+### Added
+- SpawnSubAgentTool for ephemeral sub-agent delegation via tool calls
+- Per-agent executor pipeline for micro-agents with can_spawn_subs
+- Sub-agents inherit parent's tools minus spawn (no recursion)
+
+### Changed
+- Bootstrap creates per-agent executors for spawning agents
+
 ## [0.5.0] - 2026-03-31
 
 ### Added

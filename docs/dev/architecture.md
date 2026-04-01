@@ -8,9 +8,9 @@ This is the target architecture. The current implementation covers Phase 3 (see 
 
 ---
 
-## Current Architecture (Phase 4b)
+## Current Architecture (Phase 4c)
 
-Phase 4b adds a hook pipeline around tool execution. Hooks intercept every tool call with before/after lifecycle events. Before hooks can block a call; after hooks observe the result. The agentic loop from Phase 4a continues unchanged underneath.
+Phase 4c adds sub-agent spawning. Micro-agents marked with `can_spawn_subs` can delegate work to ephemeral sub-agents via a tool call. The hook pipeline from Phase 4b and the agentic loop from Phase 4a continue unchanged underneath.
 
 **Components built:**
 
@@ -38,6 +38,7 @@ Phase 4b adds a hook pipeline around tool execution. Hooks intercept every tool 
 - `hooks/registry` -- HookRegistry: manages active hooks by name
 - `hooks/executor` -- HookExecutor: wraps inner ToolExecutor with before/after lifecycle
 - `hooks/builtins/log_tool_calls` -- LogToolCallsHook: JSONL logging with timing and blocked status
+- `tools/builtins/spawn_sub_agent` -- SpawnSubAgentTool: ephemeral sub-agent delegation via tool call
 
 **Module dependency diagram:**
 
@@ -52,6 +53,7 @@ cli/ --> core/config --> core/models --> core/types
  |         |            --> tools/builtins/file_system
  |         |            --> hooks/executor --> hooks/registry --> hooks/protocol
  |         |            --> hooks/builtins/log_tool_calls
+ |         |            --> tools/builtins/spawn_sub_agent
  |         +--> runtime/executor --> comms/bus
  |
  +--> memory/engine --> memory/storage --> core/models
@@ -94,6 +96,18 @@ HookExecutor wraps the inner ToolExecutor with a before/after lifecycle. Bootstr
 
 **LogToolCallsHook** is the first built-in hook. It writes JSONL entries for every tool call, including tool name, arguments, result, timing (duration), and blocked status.
 
+### Sub-Agent Spawning
+
+`spawn_sub_agent` is a tool call, not a new mechanism. A micro-agent with `can_spawn_subs` enabled gets the SpawnSubAgentTool registered in its tool set. When invoked, the tool creates an ephemeral sub-agent with a spawn-execute-return-destroy lifecycle.
+
+**Ephemeral lifecycle:** The parent agent calls `spawn_sub_agent` with a task and optional sub-agent name. The tool creates a sub-agent, runs it to completion via the runner factory, collects the result, and destroys the sub-agent. The parent receives the result as a normal tool output.
+
+**Tool inheritance:** Sub-agents inherit all of the parent's tools minus `spawn_sub_agent` itself. This prevents recursive spawning -- sub-agents cannot spawn further sub-agents.
+
+**Per-agent executor:** Bootstrap creates a per-agent executor for each spawning agent. The per-agent executor intercepts `spawn_sub_agent` calls and routes them to SpawnSubAgentTool. Regular tool calls pass through to the shared executor (including hooks). This keeps the hook pipeline intact for all non-spawn tool calls.
+
+**Fully hooked sub-agent tool calls:** Sub-agent tool calls go through the same hook pipeline as parent tool calls. The shared executor (with hooks) is passed to the sub-agent's runner, so before/after hooks fire on every sub-agent tool invocation.
+
 ### Multi-Agent Architecture
 
 PrimeAgent receives user messages via the bus, makes an LLM routing call, dispatches to the matched micro-agent or handles directly if no match. MessageBus enforces talks_to permissions -- an agent can only send to agents listed in its talks_to set, preventing accidental cross-agent coupling. AgentHost tracks registered agents and their status, providing a lookup table for routing decisions.
@@ -124,7 +138,7 @@ Every agent execution is wrapped in a try/except. Exceptions are caught, logged,
 
 ### Event-Driven Internals
 
-Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4b added a hook pipeline that wraps tool execution with before/after lifecycle events, extending the event-driven model to tool calls.
+Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4b added a hook pipeline that wraps tool execution with before/after lifecycle events, extending the event-driven model to tool calls. Phase 4c added sub-agent spawning as a tool call, keeping delegation within the existing tool execution model.
 
 ### State Machines for Lifecycles
 
