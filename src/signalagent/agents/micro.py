@@ -5,7 +5,7 @@ from __future__ import annotations
 from signalagent.agents.base import BaseAgent
 from signalagent.core.models import MicroAgentConfig, Message
 from signalagent.core.types import AgentType, MessageType
-from signalagent.runtime.executor import AILayerProtocol
+from signalagent.core.protocols import AILayerProtocol
 
 
 class MicroAgent(BaseAgent):

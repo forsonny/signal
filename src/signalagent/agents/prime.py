@@ -14,7 +14,7 @@ from signalagent.core.types import (
     PRIME_AGENT,
     USER_SENDER,
 )
-from signalagent.runtime.executor import AILayerProtocol
+from signalagent.core.protocols import AILayerProtocol
 
 logger = logging.getLogger(__name__)
 

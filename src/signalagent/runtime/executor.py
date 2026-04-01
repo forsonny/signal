@@ -4,26 +4,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from signalagent.comms.bus import MessageBus
 
 from signalagent.core.models import Message
+from signalagent.core.protocols import AILayerProtocol
 from signalagent.core.types import MessageType, USER_SENDER, PRIME_AGENT
 
 logger = logging.getLogger(__name__)
 
-
-@runtime_checkable
-class AILayerProtocol(Protocol):
-    """Protocol for the AI layer so agents don't depend on concrete class."""
-
-    async def complete(
-        self,
-        messages: list[dict],
-        model: Optional[str] = None,
-    ) -> Any: ...
+# Re-export so existing `from signalagent.runtime.executor import AILayerProtocol`
+# imports continue to work without modification.
+__all__ = ["AILayerProtocol", "ExecutorResult", "Executor"]
 
 
 @dataclass
