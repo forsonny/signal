@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 import litellm
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from signalagent.core.config import SignalConfig
 from signalagent.core.errors import AIError
+from signalagent.core.models import ToolCallRequest
 
 # Suppress LiteLLM's verbose logging (attribute may not exist in all versions)
 try:
@@ -27,6 +29,7 @@ class AIResponse(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cost: float = 0.0
+    tool_calls: list[ToolCallRequest] = Field(default_factory=list)
 
 
 class AILayer:
@@ -39,6 +42,7 @@ class AILayer:
         self,
         messages: list[dict],
         model: Optional[str] = None,
+        tools: list[dict] | None = None,
     ) -> AIResponse:
         """Send a completion request to an LLM provider.
 
@@ -54,10 +58,10 @@ class AILayer:
         """
         model = model or self._config.ai.default_model
         try:
-            response = await litellm.acompletion(
-                model=model,
-                messages=messages,
-            )
+            kwargs: dict = {"model": model, "messages": messages}
+            if tools is not None:
+                kwargs["tools"] = tools
+            response = await litellm.acompletion(**kwargs)
         except Exception as e:
             raise AIError(f"LLM call failed: {e}") from e
 
@@ -72,6 +76,21 @@ class AILayer:
         except Exception:
             pass
 
+        parsed_tool_calls: list[ToolCallRequest] = []
+        raw_tool_calls = choice.message.tool_calls
+        if raw_tool_calls:
+            for tc in raw_tool_calls:
+                arguments = tc.function.arguments
+                if isinstance(arguments, str):
+                    arguments = json.loads(arguments)
+                parsed_tool_calls.append(
+                    ToolCallRequest(
+                        id=tc.id,
+                        name=tc.function.name,
+                        arguments=arguments,
+                    )
+                )
+
         return AIResponse(
             content=choice.message.content or "",
             model=response.model or model,
@@ -79,4 +98,5 @@ class AILayer:
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
             cost=cost,
+            tool_calls=parsed_tool_calls,
         )
