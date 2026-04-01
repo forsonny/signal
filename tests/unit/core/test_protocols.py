@@ -36,4 +36,6 @@ class TestMemoryReaderProtocol:
         """MemoryEngine must satisfy MemoryReaderProtocol at import time."""
         from signalagent.core.protocols import MemoryReaderProtocol
         from signalagent.memory.engine import MemoryEngine
+        # issubclass used here because MemoryEngine requires a Path to construct;
+        # runtime_checkable validates method presence on the class itself.
         assert issubclass(MemoryEngine, MemoryReaderProtocol)

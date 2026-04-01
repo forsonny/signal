@@ -1,7 +1,7 @@
 """Protocol definitions for dependency injection across packages.
 
 All protocol types that agents and tools depend on live here. Concrete
-implementations live in their respective packages (ai/, runtime/).
+implementations live in their respective packages (ai/, runtime/, memory/).
 This keeps the dependency graph clean: core/ depends on nothing,
 everything else can depend on core/.
 """
