@@ -908,11 +908,22 @@ async def bootstrap(
 
 - [ ] **Step 2: Add bootstrap test with hooks active**
 
-Add to `tests/unit/runtime/test_bootstrap.py`:
+Update the imports at the top of `tests/unit/runtime/test_bootstrap.py` to:
 
 ```python
-from signalagent.core.models import HooksConfig
+from signalagent.core.models import (
+    Profile,
+    PrimeConfig,
+    MicroAgentConfig,
+    PluginsConfig,
+    HooksConfig,
+    ToolCallRequest,
+)
+```
 
+Then add the new fixture and test:
+
+```python
 # Add new fixture:
 @pytest.fixture
 def profile_with_hooks():
@@ -954,7 +965,6 @@ def profile_with_hooks():
         assert entry["blocked"] is False
 ```
 
-Also add the `HooksConfig` import to the existing imports at the top and `PrimeConfig` if not already imported.
 
 - [ ] **Step 3: Run all tests**
 
