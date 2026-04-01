@@ -21,4 +21,9 @@ def get_context_window(model: str) -> int:
     get_max_tokens() which returns max output tokens.
     """
     info = litellm.get_model_info(model)
-    return info["max_input_tokens"]
+    value = info["max_input_tokens"]
+    if value is None:
+        raise ValueError(
+            f"Model '{model}' does not have a known input context window."
+        )
+    return value

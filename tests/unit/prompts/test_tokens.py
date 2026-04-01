@@ -1,6 +1,6 @@
 """Unit tests for token counting utilities."""
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from signalagent.prompts.tokens import count_tokens, get_context_window
 
@@ -44,3 +44,10 @@ class TestGetContextWindow:
             mock_litellm.get_model_info.side_effect = Exception("Unknown model")
             with pytest.raises(Exception, match="Unknown model"):
                 get_context_window("nonexistent/model")
+
+    def test_raises_when_max_input_tokens_is_none(self):
+        """Models without a known context window raise ValueError."""
+        with patch("signalagent.prompts.tokens.litellm") as mock_litellm:
+            mock_litellm.get_model_info.return_value = {"max_input_tokens": None}
+            with pytest.raises(ValueError, match="does not have a known input context window"):
+                get_context_window("dall-e-3")
