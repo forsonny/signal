@@ -33,11 +33,6 @@ def _stub_count_tokens(text: str, model: str) -> int:
     return len(text) // 4
 
 
-def _stub_context_window(model: str) -> int:
-    """Return a realistic context window for testing."""
-    return 10000
-
-
 class TestBuildSystemPrompt:
     def test_identity_only_when_no_memories(self):
         """No memories -> returns identity unchanged."""

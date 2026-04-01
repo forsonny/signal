@@ -10,6 +10,8 @@ from __future__ import annotations
 from signalagent.core.models import Memory
 from signalagent.prompts.tokens import count_tokens, get_context_window
 
+# Caller-side limit: agents pass this to engine.search(limit=DEFAULT_MEMORY_LIMIT).
+# The builder does not enforce it -- callers control how many memories to retrieve.
 DEFAULT_MEMORY_LIMIT = 20
 
 
@@ -51,14 +53,27 @@ def build_system_prompt(
     if budget <= 0:
         return identity
 
+    # Account for the "## Context" header and separator overhead
+    header = "\n\n## Context\n\n"
+    separator = "\n\n"
+    header_tokens = count_tokens(header, model)
+    separator_tokens = count_tokens(separator, model)
+    budget -= header_tokens
+
+    if budget <= 0:
+        return identity
+
     included: list[str] = []
     for memory in memories:
         block = _format_memory(memory)
         block_tokens = count_tokens(block, model)
-        if block_tokens > budget:
+        # Add separator cost for non-first memories
+        total_cost = block_tokens + (separator_tokens if included else 0)
+        if total_cost > budget:
+            # Skip this memory but try smaller ones (greedy bin-packing)
             continue
         included.append(block)
-        budget -= block_tokens
+        budget -= total_cost
 
     if not included:
         return identity
