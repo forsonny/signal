@@ -14,7 +14,8 @@ from signalagent.core.types import (
     PRIME_AGENT,
     USER_SENDER,
 )
-from signalagent.core.protocols import AILayerProtocol
+from signalagent.core.protocols import AILayerProtocol, MemoryReaderProtocol
+from signalagent.prompts.builder import build_system_prompt, DEFAULT_MEMORY_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,16 @@ class PrimeAgent(BaseAgent):
         ai: AILayerProtocol,
         host: AgentHost,
         bus: MessageBus,
+        memory_reader: MemoryReaderProtocol | None = None,
+        model: str = "",
     ) -> None:
         super().__init__(name=PRIME_AGENT, agent_type=AgentType.PRIME)
         self._identity = identity
         self._ai = ai
         self._host = host
         self._bus = bus
+        self._memory_reader = memory_reader
+        self._model = model
 
     async def _handle(self, message: Message) -> Message | None:
         """Route to micro-agent or handle directly."""
@@ -80,6 +85,7 @@ class PrimeAgent(BaseAgent):
 
         If the routing call fails, catches the exception and returns None.
         Routing failure must never crash Prime.
+        No memory injection -- routing is classification, not knowledge.
         """
         agent_list = "\n".join(
             f"- {a.name}: {a.skill}"
@@ -116,9 +122,30 @@ class PrimeAgent(BaseAgent):
 
     async def _handle_directly(self, user_content: str) -> str:
         """Execute using Prime's own identity prompt. Fallback path."""
+        memories = []
+        if self._memory_reader:
+            try:
+                memories = await self._memory_reader.search(
+                    agent="prime", limit=DEFAULT_MEMORY_LIMIT,
+                )
+            except Exception:
+                logger.warning("Memory retrieval failed, proceeding without context")
+
+        if memories and self._model:
+            system_prompt = build_system_prompt(
+                identity=self._identity,
+                memories=memories,
+                model=self._model,
+            )
+        elif memories:
+            logger.warning("Memories retrieved but no model set; skipping context injection")
+            system_prompt = self._identity
+        else:
+            system_prompt = self._identity
+
         response = await self._ai.complete(
             messages=[
-                {"role": "system", "content": self._identity},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ],
         )
