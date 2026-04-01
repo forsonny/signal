@@ -9,7 +9,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from signalagent.core.errors import ConfigError, InstanceError
-from signalagent.core.models import Profile
+from signalagent.core.models import Profile, ToolConfig
 
 
 class AIConfig(BaseModel):
@@ -26,6 +26,7 @@ class SignalConfig(BaseModel):
 
     profile_name: str
     ai: AIConfig = Field(default_factory=AIConfig)
+    tools: ToolConfig = Field(default_factory=ToolConfig)
 
     def to_yaml(self, path: Path) -> None:
         # NOTE: model_dump(mode="json") converts Path fields to strings.

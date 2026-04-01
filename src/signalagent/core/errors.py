@@ -23,3 +23,7 @@ class MemoryStoreError(SignalError):
 
 class RoutingError(SignalError):
     """Message routing failed -- no match, talks_to violation, unknown agent."""
+
+
+class ToolExecutionError(SignalError):
+    """Tool execution failed."""

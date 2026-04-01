@@ -29,6 +29,7 @@ class MicroAgentConfig(BaseModel):
     mcp_servers: list[str] = Field(default_factory=list)
     scripts: list[str] = Field(default_factory=list)
     can_spawn_subs: bool = False
+    max_iterations: int = 10
 
 
 class PluginsConfig(BaseModel):
@@ -95,3 +96,31 @@ class Message(BaseModel):
     created: datetime | None = None
     parent_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolCallRequest(BaseModel):
+    """What the LLM wants to do -- a request to call a tool.
+
+    Named ToolCallRequest (not ToolCall) to reserve ToolCall for the full
+    execution record with result, timing, and tracing (Phase 10).
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+class ToolResult(BaseModel):
+    """Result of executing a tool call."""
+    model_config = ConfigDict(extra="forbid")
+
+    output: str
+    error: str | None = None
+
+
+class ToolConfig(BaseModel):
+    """Global tool execution settings."""
+    model_config = ConfigDict(extra="forbid")
+
+    max_iterations: int = 20

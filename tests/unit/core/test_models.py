@@ -13,6 +13,9 @@ from signalagent.core.models import (
     HeartbeatConfig,
     Memory,
     Message,
+    ToolCallRequest,
+    ToolResult,
+    ToolConfig,
 )
 from signalagent.core.types import MemoryType, MessageType
 
@@ -242,3 +245,50 @@ class TestMessage:
                 content="hello",
                 bogus="field",
             )
+
+
+class TestToolCallRequest:
+    def test_construction(self):
+        tc = ToolCallRequest(id="call_1", name="file_system", arguments={"op": "read"})
+        assert tc.id == "call_1"
+        assert tc.name == "file_system"
+        assert tc.arguments == {"op": "read"}
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(ValidationError):
+            ToolCallRequest(id="1", name="x", arguments={}, extra="bad")
+
+
+class TestToolResult:
+    def test_success_result(self):
+        r = ToolResult(output="file contents here")
+        assert r.output == "file contents here"
+        assert r.error is None
+
+    def test_error_result(self):
+        r = ToolResult(output="", error="file not found")
+        assert r.error == "file not found"
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(ValidationError):
+            ToolResult(output="x", extra="bad")
+
+
+class TestToolConfig:
+    def test_defaults(self):
+        tc = ToolConfig()
+        assert tc.max_iterations == 20
+
+    def test_custom_max(self):
+        tc = ToolConfig(max_iterations=50)
+        assert tc.max_iterations == 50
+
+
+class TestMicroAgentConfigMaxIterations:
+    def test_default_max_iterations(self):
+        config = MicroAgentConfig(name="test", skill="testing")
+        assert config.max_iterations == 10
+
+    def test_custom_max_iterations(self):
+        config = MicroAgentConfig(name="test", skill="testing", max_iterations=5)
+        assert config.max_iterations == 5
