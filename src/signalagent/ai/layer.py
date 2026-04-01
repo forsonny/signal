@@ -49,12 +49,14 @@ class AILayer:
         Args:
             messages: Chat messages in OpenAI format.
             model: Model identifier. Falls back to config default.
+            tools: Tool definitions in LiteLLM function-calling format.
+                   When None, tools key is omitted from the LLM call.
 
         Returns:
             Unified AIResponse regardless of provider.
 
         Raises:
-            AIError: If the LLM call fails for any reason.
+            AIError: If the LLM call or tool call parsing fails.
         """
         model = model or self._config.ai.default_model
         try:
@@ -79,17 +81,20 @@ class AILayer:
         parsed_tool_calls: list[ToolCallRequest] = []
         raw_tool_calls = choice.message.tool_calls
         if raw_tool_calls:
-            for tc in raw_tool_calls:
-                arguments = tc.function.arguments
-                if isinstance(arguments, str):
-                    arguments = json.loads(arguments)
-                parsed_tool_calls.append(
-                    ToolCallRequest(
-                        id=tc.id,
-                        name=tc.function.name,
-                        arguments=arguments,
+            try:
+                for tc in raw_tool_calls:
+                    arguments = tc.function.arguments
+                    if isinstance(arguments, str):
+                        arguments = json.loads(arguments)
+                    parsed_tool_calls.append(
+                        ToolCallRequest(
+                            id=tc.id,
+                            name=tc.function.name,
+                            arguments=arguments,
+                        )
                     )
-                )
+            except (json.JSONDecodeError, AttributeError, KeyError) as e:
+                raise AIError(f"Failed to parse tool call response: {e}") from e
 
         return AIResponse(
             content=choice.message.content or "",
