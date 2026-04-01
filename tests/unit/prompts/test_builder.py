@@ -34,15 +34,15 @@ def _stub_count_tokens(text: str, model: str) -> int:
 
 
 def _stub_context_window(model: str) -> int:
-    """Return a small context window for testing."""
-    return 1000
+    """Return a realistic context window for testing."""
+    return 10000
 
 
 class TestBuildSystemPrompt:
     def test_identity_only_when_no_memories(self):
         """No memories -> returns identity unchanged."""
         with patch("signalagent.prompts.builder.count_tokens", side_effect=_stub_count_tokens), \
-             patch("signalagent.prompts.builder.get_context_window", return_value=1000):
+             patch("signalagent.prompts.builder.get_context_window", return_value=10000):
             result = build_system_prompt("You are a test agent.", [], "test-model")
         assert result == "You are a test agent."
         assert "## Context" not in result
@@ -51,7 +51,7 @@ class TestBuildSystemPrompt:
         """Memories get included under a ## Context header."""
         mem = _make_memory(content="Important fact", tags=["python"])
         with patch("signalagent.prompts.builder.count_tokens", side_effect=_stub_count_tokens), \
-             patch("signalagent.prompts.builder.get_context_window", return_value=1000):
+             patch("signalagent.prompts.builder.get_context_window", return_value=10000):
             result = build_system_prompt("You are a test agent.", [mem], "test-model")
         assert "## Context" in result
         assert "Important fact" in result
@@ -61,7 +61,7 @@ class TestBuildSystemPrompt:
         """Memory heading includes type and first tag."""
         mem = _make_memory(content="Some content", memory_type=MemoryType.PATTERN, tags=["refactoring", "python"])
         with patch("signalagent.prompts.builder.count_tokens", side_effect=_stub_count_tokens), \
-             patch("signalagent.prompts.builder.get_context_window", return_value=1000):
+             patch("signalagent.prompts.builder.get_context_window", return_value=10000):
             result = build_system_prompt("Identity.", [mem], "test-model")
         assert "### pattern: refactoring" in result
         assert "Some content" in result
@@ -70,7 +70,7 @@ class TestBuildSystemPrompt:
         """Memory with empty tags uses type only as heading."""
         mem = _make_memory(content="No tag content", tags=[])
         with patch("signalagent.prompts.builder.count_tokens", side_effect=_stub_count_tokens), \
-             patch("signalagent.prompts.builder.get_context_window", return_value=1000):
+             patch("signalagent.prompts.builder.get_context_window", return_value=10000):
             result = build_system_prompt("Identity.", [mem], "test-model")
         assert "### learning" in result
         assert ": " not in result.split("### learning")[1].split("\n")[0]
@@ -100,7 +100,7 @@ class TestBuildSystemPrompt:
         """Identity text appears before context section."""
         mem = _make_memory(content="Memory text")
         with patch("signalagent.prompts.builder.count_tokens", side_effect=_stub_count_tokens), \
-             patch("signalagent.prompts.builder.get_context_window", return_value=1000):
+             patch("signalagent.prompts.builder.get_context_window", return_value=10000):
             result = build_system_prompt("Identity first.", [mem], "test-model")
         identity_pos = result.index("Identity first.")
         context_pos = result.index("## Context")

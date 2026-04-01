@@ -26,7 +26,7 @@ def build_system_prompt(
     identity: str,
     memories: list[Memory],
     model: str,
-    response_reserve: int = 500,
+    response_reserve: int = 1500,
 ) -> str:
     """Assemble a token-budgeted system prompt from identity + memories.
 
