@@ -32,7 +32,8 @@ async def bootstrap(
         if tool is not None:
             registry.register(tool)
 
-    # Tool executor -- thin wrapper, 4b replaces with hook-aware version
+    # Tool executor -- thin wrapper shared by all runners. Registry is
+    # read-only after this point. 4b replaces with hook-aware version.
     async def tool_executor(tool_name: str, arguments: dict) -> ToolResult:
         tool = registry.get(tool_name)
         if tool is None:
@@ -44,7 +45,8 @@ async def bootstrap(
 
     global_max = config.tools.max_iterations
 
-    # Prime agent (no tools)
+    # Prime agent -- no agentic tool loop. If Prime gains tools in a
+    # future phase, apply global_max cap here too.
     prime = PrimeAgent(identity=profile.prime.identity, ai=ai, host=host, bus=bus)
     host.register(prime, talks_to=None)
 
