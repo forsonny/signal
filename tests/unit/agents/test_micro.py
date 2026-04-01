@@ -1,7 +1,7 @@
 """Unit tests for MicroAgent -- mock AILayer only."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from signalagent.agents.micro import MicroAgent
 from signalagent.ai.layer import AIResponse

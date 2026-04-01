@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Optional, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from signalagent.comms.bus import MessageBus
 
 from signalagent.core.models import Message
 from signalagent.core.types import MessageType, USER_SENDER, PRIME_AGENT
@@ -42,7 +45,7 @@ class Executor:
     logged, and returned as an ExecutorResult with error set.
     """
 
-    def __init__(self, bus: Any) -> None:
+    def __init__(self, bus: MessageBus) -> None:
         self._bus = bus
 
     async def run(self, user_message: str) -> ExecutorResult:
