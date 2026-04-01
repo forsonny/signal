@@ -10,7 +10,7 @@
 | 4a | Tool Execution + Agentic Loop | Complete | AgenticRunner, tool protocol/registry, FileSystemTool, two-tier iteration limits |
 | 4b | Hooks + Sub-Agents | Complete | Hook protocol, HookRegistry, HookExecutor, LogToolCallsHook, bootstrap wiring |
 | 4c | Sub-Agent Spawning | Complete | SpawnSubAgentTool, per-agent executor, ephemeral sub-agent lifecycle |
-| 5 | Prompt Construction | Planned | Token budgeting, smart retrieval, overflow handling |
+| 5 | Prompt Construction | Complete | Token budgeting via LiteLLM, pure-function builder, MemoryReaderProtocol, agent memory injection |
 | 6 | Sessions + Conversation | Planned | Interactive mode, threads, reference resolution |
 | 7 | Heartbeat Daemon | Planned | Autonomous triggers (cron, events, conditions) |
 | 8 | Worktrees + Forks | Planned | Isolated workspaces, parallel approaches |
