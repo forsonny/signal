@@ -5,11 +5,10 @@ from unittest.mock import AsyncMock
 
 from signalagent.agents.base import BaseAgent
 from signalagent.agents.host import AgentHost
-from signalagent.agents.micro import MicroAgent
 from signalagent.agents.prime import PrimeAgent
 from signalagent.ai.layer import AIResponse
 from signalagent.comms.bus import MessageBus
-from signalagent.core.models import MicroAgentConfig, Message
+from signalagent.core.models import Message
 from signalagent.core.types import (
     AgentType,
     MessageType,
