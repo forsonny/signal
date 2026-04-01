@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-04-01
+
+### Added
+- Token counting utilities (prompts/tokens.py) wrapping LiteLLM for model-aware token budgeting
+- Pure-function prompt builder (prompts/builder.py) assembling token-budgeted system prompts from identity + memories
+- MemoryReaderProtocol in core/protocols.py for dependency-inverted memory access
+- Memory injection in MicroAgent and PrimeAgent via MemoryReaderProtocol
+- DEFAULT_MEMORY_LIMIT constant for caller-side retrieval control
+
+### Changed
+- MicroAgent._build_system_prompt() renamed to _build_identity() (static identity only)
+- PrimeAgent._handle_directly() enriches prompt with retrieved memories
+- PrimeAgent._route() explicitly excludes memory injection (classification, not knowledge)
+- Bootstrap injects MemoryEngine and model name into all agents
+
 ## [0.6.0] - 2026-03-31
 
 ### Added
