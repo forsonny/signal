@@ -17,7 +17,17 @@ src/signalagent/
     layer.py           -- AILayer wrapping LiteLLM, async completion, AIResponse model
 
   runtime/
-    executor.py        -- Executor with error boundary, ExecutorResult, AILayerProtocol
+    executor.py        -- Executor with error boundary, ExecutorResult, AILayerProtocol; delegates delivery to MessageBus
+    bootstrap.py       -- Single wiring point: constructs and connects all runtime components
+
+  agents/
+    base.py            -- BaseAgent with template method handle()/_handle()
+    host.py            -- AgentHost: registry backed by MessageBus
+    prime.py           -- PrimeAgent: LLM routing, direct handling fallback
+    micro.py           -- MicroAgent: skill-based specialist agent
+
+  comms/
+    bus.py             -- MessageBus: typed delivery, talks_to enforcement, logging
 
   memory/
     storage.py         -- MemoryStorage: atomic markdown file I/O with YAML frontmatter
@@ -39,8 +49,10 @@ tests/
   unit/
     core/              -- tests for types, models, config (no I/O mocking needed)
     ai/                -- AI layer tests (litellm.acompletion patched with AsyncMock)
-    runtime/           -- executor tests (AILayer injected via Protocol mock)
+    runtime/           -- tests for executor.py (bus-based), bootstrap.py (wiring)
     memory/            -- memory tests: storage (tmp_path), index (in-memory SQLite), engine (both)
+    agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
+    comms/             -- tests for comms/bus.py (MessageBus)
 
   integration/         -- CLI end-to-end tests using typer.testing.CliRunner
 ```
@@ -53,7 +65,6 @@ The following packages appear in Phase 3+ plans. None of their files exist yet. 
 
 | Module | Planned phase | Purpose |
 |--------|---------------|---------|
-| `comms/` | Phase 3 | Inter-agent message bus, message routing |
 | `heartbeat/` | Phase 7 | Autonomous trigger daemon (cron, events, conditions) |
 | `tools/` | Phase 4 | Agentic tool execution, sub-agent dispatch |
 | `plugins/` | Phase 4 | Plugin loader, hook pipeline |

@@ -25,7 +25,7 @@ uv run pytest -k "executor"
 uv run pytest -v -x tests/unit/ai/
 ```
 
-Current test count: **116 tests, all passing**.
+Current test count: **169 tests, all passing**.
 
 ---
 
@@ -39,6 +39,9 @@ tests/
     ai/                -- tests for ai/layer.py (LiteLLM mocked)
     runtime/           -- tests for runtime/executor.py (AILayer mocked via Protocol)
     memory/            -- tests for memory/storage.py, index.py, engine.py
+    agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
+    comms/             -- tests for comms/bus.py (MessageBus)
+    runtime/           -- tests for executor.py (bus-based), bootstrap.py (wiring)
   integration/         -- CLI end-to-end tests
 ```
 
@@ -132,6 +135,19 @@ def test_init_creates_config(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert (tmp_path / ".signal" / "config.yaml").exists()
 ```
+
+### Multi-Agent Tests
+
+Multi-agent tests use a sequential `side_effect` list to drive the two LLM calls that happen in a single routed request: Prime's routing call followed by the micro-agent's execution call.
+
+```python
+mock_ai.complete = AsyncMock(side_effect=[
+    routing_response,    # Prime's routing call
+    agent_response,      # Micro-agent's execution call
+])
+```
+
+Agent tests use a real bus with stub agents for isolation -- this exercises the bus wiring without needing a full runtime. Bootstrap tests use all real objects with only `AILayer` mocked, verifying that the wiring function connects everything correctly.
 
 ---
 

@@ -4,15 +4,13 @@
 
 Signal is a multi-agent runtime. A user communicates with a **Prime Agent**, which routes tasks to specialist **micro-agents**. Each agent has persistent memory scoped to its domain. A **heartbeat daemon** triggers agents autonomously based on schedules, events, or conditions, without requiring a user prompt.
 
-This is the target architecture. The current implementation covers Phase 1 only (see below).
+This is the target architecture. The current implementation covers Phase 3 (see below).
 
 ---
 
-## Current Architecture (Phase 2)
+## Current Architecture (Phase 3)
 
-Phase 2 adds persistent memory to the Phase 1 skeleton. Agents can now store and retrieve knowledge between tasks.
-
-There is no multi-agent routing and no heartbeat daemon yet. These are Phase 3+ concerns.
+Phase 3 adds multi-agent routing to the Phase 2 memory foundation. User messages flow through Prime, get LLM-routed to micro-agents, and return results via the message bus.
 
 **Components built:**
 
@@ -25,19 +23,32 @@ There is no multi-agent routing and no heartbeat daemon yet. These are Phase 3+ 
 - `memory/storage` -- Atomic markdown file I/O with YAML frontmatter
 - `memory/index` -- Async SQLite metadata index with tag+recency scoring
 - `memory/engine` -- Orchestrator tying storage and index together
+- `agents/base` -- BaseAgent with template method for status management (BUSY/IDLE)
+- `agents/host` -- AgentHost registry, wires agents to the message bus
+- `agents/prime` -- PrimeAgent with LLM-based routing and direct handling fallback
+- `agents/micro` -- MicroAgent with skill-based system prompt template
+- `comms/bus` -- In-process MessageBus with talks_to enforcement and message logging
+- `runtime/bootstrap` -- Single wiring point connecting all components
 
 **Module dependency diagram:**
 
 ```
 cli/ --> core/config --> core/models --> core/types
  |                         |
- +--> runtime/executor --> ai/layer --> LiteLLM
+ +--> runtime/bootstrap --> agents/prime --> ai/layer --> LiteLLM
+ |         |            --> agents/micro --> ai/layer
+ |         |            --> agents/host  --> comms/bus
+ |         +--> runtime/executor --> comms/bus
  |
  +--> memory/engine --> memory/storage --> core/models
                     --> memory/index   --> core/models
 ```
 
 No module imports upward. `core/` has no runtime dependencies. `memory/` depends only on `core/`. `cli/` orchestrates everything.
+
+### Multi-Agent Architecture
+
+PrimeAgent receives user messages via the bus, makes an LLM routing call, dispatches to the matched micro-agent or handles directly if no match. MessageBus enforces talks_to permissions -- an agent can only send to agents listed in its talks_to set, preventing accidental cross-agent coupling. AgentHost tracks registered agents and their status, providing a lookup table for routing decisions.
 
 ### Memory Architecture
 
@@ -63,9 +74,9 @@ The executor does not import `AILayer` directly. It depends on `AILayerProtocol`
 
 Every agent execution is wrapped in a try/except. Exceptions are caught, logged, and converted to a structured error result. An unhandled exception inside an agent must never propagate up and crash the runtime process. This invariant holds even in Phase 1 with a single agent.
 
-### Event-Driven Internals (Phase 3+)
+### Event-Driven Internals
 
-From Phase 3, inter-agent communication will use an internal message bus. Agents publish and subscribe to typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 1 has no bus -- the executor calls the AI layer directly.
+Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4 adds hooks and plugins on top of the bus infrastructure already in place.
 
 ### State Machines for Lifecycles
 
