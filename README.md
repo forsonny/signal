@@ -8,7 +8,7 @@ Signal gives you a single agent, Prime, that you talk to directly. Behind Prime 
 
 ## Current Status
 
-**Phase 4a of 10 complete.** Agents can now call tools via an agentic loop -- the runner calls AI, executes tool calls, feeds results back, and repeats until the task is complete or the iteration limit is reached. The first built-in tool is `file_system` (read/write/list, scoped to workspace). Two-tier iteration limits (global ceiling + per-agent config) prevent runaway loops. Prime still routes to specialist micro-agents via the message bus.
+**Phase 4b of 10 complete.** A hook pipeline now intercepts every tool call with before/after lifecycle events. Before hooks can block a call; after hooks observe results. The built-in LogToolCallsHook writes JSONL logs with timing and blocked status. Underneath, agents still call tools via the agentic loop -- the runner calls AI, executes tool calls, feeds results back, and repeats until done. Prime routes to specialist micro-agents via the message bus.
 
 See the [roadmap](docs/dev/roadmap.md) for what is coming.
 

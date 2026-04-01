@@ -25,7 +25,7 @@ uv run pytest -k "executor"
 uv run pytest -v -x tests/unit/ai/
 ```
 
-Current test count: **219 tests, all passing**.
+Current test count: **247 tests, all passing**.
 
 ---
 
@@ -42,6 +42,8 @@ tests/
     agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
     comms/             -- tests for comms/bus.py (MessageBus)
     tools/             -- tests for tools/protocol.py, registry.py, builtins/file_system.py
+    hooks/             -- tests for hooks/registry.py, executor.py
+      builtins/        -- tests for hooks/builtins/log_tool_calls.py
   integration/         -- CLI end-to-end tests
 ```
 
@@ -209,3 +211,47 @@ def test_file_system_tool_reads(tmp_path):
     result = tool.execute(action="read", path="test.txt")
     assert result.output == "hello"
 ```
+
+### Hook Tests
+
+Hook tests use fake hook classes instead of mocking the protocol directly. This gives explicit control over block/allow behavior and lets tests inspect call history.
+
+**AllowHook / BlockHook pattern:** Define minimal classes that satisfy the Hook protocol. AllowHook records calls and returns `None` (allow). BlockHook returns a `ToolResult` with an error (block). These are defined per-test-module, not shared fixtures, since they are short and test-specific.
+
+```python
+class AllowHook:
+    def __init__(self, name="allow"):
+        self._name = name
+        self.before_calls = []
+        self.after_calls = []
+
+    @property
+    def name(self):
+        return self._name
+
+    async def before_tool_call(self, tool_name, arguments):
+        self.before_calls.append((tool_name, arguments))
+        return None
+
+    async def after_tool_call(self, tool_name, arguments, result, blocked):
+        self.after_calls.append((tool_name, arguments, result, blocked))
+
+
+class BlockHook:
+    def __init__(self, reason="Blocked by policy"):
+        self._reason = reason
+
+    @property
+    def name(self):
+        return "blocker"
+
+    async def before_tool_call(self, tool_name, arguments):
+        return ToolResult(output="", error=f"Blocked: {self._reason}")
+
+    async def after_tool_call(self, tool_name, arguments, result, blocked):
+        pass
+```
+
+**HookExecutor tests** use an `AsyncMock` as the inner executor and combine AllowHook/BlockHook instances to verify: allow-through, block-before-execution, after-hooks-fire-on-block, and fail-open-on-hook-error.
+
+**LogToolCallsHook tests** use `tmp_path` for the JSONL log file and verify that each tool call produces a JSON line with the expected fields (tool_name, arguments, duration, blocked).

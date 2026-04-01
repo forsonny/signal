@@ -8,7 +8,7 @@
 | 2 | Memory Foundation | Complete | Atomic files, SQLite index, tag+recency retrieval, CLI |
 | 3 | Multi-Agent | Complete | Prime routing, micro-agents, message bus |
 | 4a | Tool Execution + Agentic Loop | Complete | AgenticRunner, tool protocol/registry, FileSystemTool, two-tier iteration limits |
-| 4b | Hooks + Sub-Agents | Planned | Plugin loader, hook pipeline, sub-agent dispatch |
+| 4b | Hooks + Sub-Agents | Complete | Hook protocol, HookRegistry, HookExecutor, LogToolCallsHook, bootstrap wiring |
 | 5 | Prompt Construction | Planned | Token budgeting, smart retrieval, overflow handling |
 | 6 | Sessions + Conversation | Planned | Interactive mode, threads, reference resolution |
 | 7 | Heartbeat Daemon | Planned | Autonomous triggers (cron, events, conditions) |

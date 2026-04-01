@@ -8,9 +8,9 @@ This is the target architecture. The current implementation covers Phase 3 (see 
 
 ---
 
-## Current Architecture (Phase 4a)
+## Current Architecture (Phase 4b)
 
-Phase 4a adds tool execution and an agentic loop to the Phase 3 multi-agent foundation. Agents can now call tools iteratively -- the runner calls AI, executes tool calls, feeds results back, and repeats until the AI returns a final text response or the iteration limit is reached.
+Phase 4b adds a hook pipeline around tool execution. Hooks intercept every tool call with before/after lifecycle events. Before hooks can block a call; after hooks observe the result. The agentic loop from Phase 4a continues unchanged underneath.
 
 **Components built:**
 
@@ -22,7 +22,7 @@ Phase 4a adds tool execution and an agentic loop to the Phase 3 multi-agent foun
 - `ai/layer` -- LiteLLM wrapper, async completion with optional tools parameter, response normalization
 - `runtime/executor` -- Single-turn executor with error boundary
 - `runtime/runner` -- AgenticRunner: agentic loop with tool calling and two-tier iteration limits
-- `runtime/bootstrap` -- Single wiring point connecting all components (including tool pipeline)
+- `runtime/bootstrap` -- Single wiring point connecting all components (including tool pipeline and hook pipeline)
 - `memory/storage` -- Atomic markdown file I/O with YAML frontmatter
 - `memory/index` -- Async SQLite metadata index with tag+recency scoring
 - `memory/engine` -- Orchestrator tying storage and index together
@@ -34,6 +34,10 @@ Phase 4a adds tool execution and an agentic loop to the Phase 3 multi-agent foun
 - `tools/protocol` -- ToolProtocol defining the interface all tools implement
 - `tools/registry` -- ToolRegistry for name-to-implementation lookup, LiteLLM-format schema generation
 - `tools/builtins/file_system` -- FileSystemTool: read/write/list, scoped to workspace, size-capped reads
+- `hooks/protocol` -- Hook protocol: before_tool_call (block/allow) and after_tool_call (observe)
+- `hooks/registry` -- HookRegistry: manages active hooks by name
+- `hooks/executor` -- HookExecutor: wraps inner ToolExecutor with before/after lifecycle
+- `hooks/builtins/log_tool_calls` -- LogToolCallsHook: JSONL logging with timing and blocked status
 
 **Module dependency diagram:**
 
@@ -46,13 +50,15 @@ cli/ --> core/config --> core/models --> core/types
  |         |            --> runtime/runner --> core/protocols (AILayerProtocol, ToolExecutor)
  |         |            --> tools/registry --> tools/protocol
  |         |            --> tools/builtins/file_system
+ |         |            --> hooks/executor --> hooks/registry --> hooks/protocol
+ |         |            --> hooks/builtins/log_tool_calls
  |         +--> runtime/executor --> comms/bus
  |
  +--> memory/engine --> memory/storage --> core/models
                     --> memory/index   --> core/models
 ```
 
-No module imports upward. `core/` has no runtime dependencies. `memory/` depends only on `core/`. `tools/` depends only on `core/`. `cli/` orchestrates everything.
+No module imports upward. `core/` has no runtime dependencies. `memory/` depends only on `core/`. `tools/` depends only on `core/`. `hooks/` depends only on `core/`. `cli/` orchestrates everything.
 
 ### Tool Execution Architecture
 
@@ -68,11 +74,25 @@ The agentic loop is the core of Phase 4a. It enables agents to call tools iterat
 
 **ToolRegistry** maps tool names to their implementations (objects satisfying ToolProtocol). It produces LiteLLM-format tool schemas (function name, description, parameters as JSON Schema) for passing to the AI layer.
 
-**ToolExecutor** is a callable protocol (`async (str, dict) -> ToolResult`). In production, bootstrap wires it to call through the registry. In tests, it can be replaced with a simple mock. This is the hook point for Phase 4b, where pre/post-execution hooks will wrap this callable.
+**ToolExecutor** is a callable protocol (`async (str, dict) -> ToolResult`). In production, bootstrap wires it to call through the registry. In tests, it can be replaced with a simple mock.
 
 **FileSystemTool** is the first built-in tool. It supports read, write, and list operations scoped to the instance workspace directory. Reads are size-capped to prevent token budget exhaustion.
 
 **Two-tier iteration limits:** A global ceiling is defined in configuration (hard upper bound). Each agent can also specify a per-agent limit via ToolConfig.max_iterations. The runner enforces whichever is lower.
+
+### Hook Pipeline
+
+HookExecutor wraps the inner ToolExecutor with a before/after lifecycle. Bootstrap wires the pipeline as: inner executor (registry call) -> HookExecutor -> AgenticRunner.
+
+**Before hooks** run before the tool executes. Each hook's `before_tool_call` returns `None` to allow the call or a `ToolResult` with an error to block it. If any before hook blocks, the tool is not executed and the blocking result is returned immediately.
+
+**After hooks** run after the tool executes (or after a block). Every registered hook's `after_tool_call` fires, including on blocked calls -- it receives a `blocked` flag so hooks can distinguish blocked from executed calls.
+
+**Fail-open policy:** If a hook raises an exception during either phase, the error is logged and the hook is skipped. The tool call proceeds. This is documented for future configurability (fail-closed mode).
+
+**HookRegistry** manages the active hook set. Hooks are registered by name and looked up from the profile's `hooks.active` list. This makes hooks instance-wide and profile-configurable.
+
+**LogToolCallsHook** is the first built-in hook. It writes JSONL entries for every tool call, including tool name, arguments, result, timing (duration), and blocked status.
 
 ### Multi-Agent Architecture
 
@@ -104,7 +124,7 @@ Every agent execution is wrapped in a try/except. Exceptions are caught, logged,
 
 ### Event-Driven Internals
 
-Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4b will add hooks and plugins on top of the bus and tool execution infrastructure.
+Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4b added a hook pipeline that wraps tool execution with before/after lifecycle events, extending the event-driven model to tool calls.
 
 ### State Machines for Lifecycles
 

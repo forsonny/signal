@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-03-31
+
+### Added
+- Hook protocol with before_tool_call (block/allow) and after_tool_call (observe)
+- HookRegistry for instance-wide hook management
+- HookExecutor wrapping ToolExecutor with before/after hook lifecycle
+- LogToolCallsHook: JSONL logging of all tool calls with timing and blocked status
+- HooksConfig model with active hook list on Profile
+
+### Changed
+- Bootstrap wires hook pipeline: inner executor -> HookExecutor
+
 ## [0.4.0] - 2026-03-31
 
 ### Added

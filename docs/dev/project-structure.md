@@ -37,6 +37,13 @@ src/signalagent/
     builtins/
       file_system.py   -- FileSystemTool: read/write/list, scoped to workspace, size-capped reads
 
+  hooks/
+    protocol.py        -- Hook protocol: before_tool_call (block/allow) and after_tool_call (observe)
+    registry.py        -- HookRegistry: manages active hooks by name
+    executor.py        -- HookExecutor: wraps inner ToolExecutor with before/after lifecycle
+    builtins/
+      log_tool_calls.py -- LogToolCallsHook: JSONL logging with timing and blocked status
+
   memory/
     storage.py         -- MemoryStorage: atomic markdown file I/O with YAML frontmatter
     index.py           -- MemoryIndex: async SQLite metadata index with tag+recency scoring
@@ -62,6 +69,8 @@ tests/
     agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
     comms/             -- tests for comms/bus.py (MessageBus)
     tools/             -- tests for tools/protocol.py, registry.py, builtins/file_system.py
+    hooks/             -- tests for hooks/registry.py, executor.py
+      builtins/        -- tests for hooks/builtins/log_tool_calls.py
 
   integration/         -- CLI end-to-end tests using typer.testing.CliRunner
 ```
@@ -75,7 +84,7 @@ The following packages appear in Phase 3+ plans. None of their files exist yet. 
 | Module | Planned phase | Purpose |
 |--------|---------------|---------|
 | `heartbeat/` | Phase 7 | Autonomous trigger daemon (cron, events, conditions) |
-| `plugins/` | Phase 4b | Plugin loader, hook pipeline |
+| `plugins/` | Phase 4b | Plugin loader (hooks delivered, plugin loader deferred) |
 | `sessions/` | Phase 6 | Session lifecycle, interactive conversation mode |
 | `conversation/` | Phase 6 | Thread management, reference resolution |
 | `worktrees/` | Phase 8 | Isolated workspace creation and management |
