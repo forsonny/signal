@@ -10,24 +10,32 @@ src/signalagent/
   core/
     types.py           -- enums: AgentType, AgentStatus, TaskStatus, TaskPriority, MessageType, MemoryType
     errors.py          -- exception hierarchy: SignalError -> ConfigError, AIError, InstanceError, MemoryStoreError
-    models.py          -- Pydantic models: Profile, PrimeConfig, MicroAgentConfig, Memory
+    models.py          -- Pydantic models: Profile, PrimeConfig, MicroAgentConfig, Memory, ToolCallRequest, ToolResult, ToolConfig
     config.py          -- SignalConfig, AIConfig, load/save helpers, instance management
+    protocols.py       -- protocol definitions: AILayerProtocol, RunnerProtocol, ToolExecutor
 
   ai/
     layer.py           -- AILayer wrapping LiteLLM, async completion, AIResponse model
 
   runtime/
-    executor.py        -- Executor with error boundary, ExecutorResult, AILayerProtocol; delegates delivery to MessageBus
-    bootstrap.py       -- Single wiring point: constructs and connects all runtime components
+    executor.py        -- Executor with error boundary, ExecutorResult; delegates delivery to MessageBus
+    runner.py          -- AgenticRunner: agentic loop with tool calling and iteration limits
+    bootstrap.py       -- Single wiring point: constructs and connects all runtime components (including tool pipeline)
 
   agents/
     base.py            -- BaseAgent with template method handle()/_handle()
     host.py            -- AgentHost: registry backed by MessageBus
     prime.py           -- PrimeAgent: LLM routing, direct handling fallback
-    micro.py           -- MicroAgent: skill-based specialist agent
+    micro.py           -- MicroAgent: skill-based specialist, delegates to RunnerProtocol
 
   comms/
     bus.py             -- MessageBus: typed delivery, talks_to enforcement, logging
+
+  tools/
+    protocol.py        -- ToolProtocol defining the interface all tools implement
+    registry.py        -- ToolRegistry: name-to-implementation lookup, LiteLLM-format schema generation
+    builtins/
+      file_system.py   -- FileSystemTool: read/write/list, scoped to workspace, size-capped reads
 
   memory/
     storage.py         -- MemoryStorage: atomic markdown file I/O with YAML frontmatter
@@ -47,12 +55,13 @@ tests/
   conftest.py          -- shared fixtures (tmp dirs, mock configs, mock AI layer)
 
   unit/
-    core/              -- tests for types, models, config (no I/O mocking needed)
+    core/              -- tests for types, models, config, protocols (no I/O mocking needed)
     ai/                -- AI layer tests (litellm.acompletion patched with AsyncMock)
-    runtime/           -- tests for executor.py (bus-based), bootstrap.py (wiring)
+    runtime/           -- tests for executor.py (bus-based), bootstrap.py (wiring), runner.py (agentic loop)
     memory/            -- memory tests: storage (tmp_path), index (in-memory SQLite), engine (both)
     agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
     comms/             -- tests for comms/bus.py (MessageBus)
+    tools/             -- tests for tools/protocol.py, registry.py, builtins/file_system.py
 
   integration/         -- CLI end-to-end tests using typer.testing.CliRunner
 ```
@@ -66,8 +75,7 @@ The following packages appear in Phase 3+ plans. None of their files exist yet. 
 | Module | Planned phase | Purpose |
 |--------|---------------|---------|
 | `heartbeat/` | Phase 7 | Autonomous trigger daemon (cron, events, conditions) |
-| `tools/` | Phase 4 | Agentic tool execution, sub-agent dispatch |
-| `plugins/` | Phase 4 | Plugin loader, hook pipeline |
+| `plugins/` | Phase 4b | Plugin loader, hook pipeline |
 | `sessions/` | Phase 6 | Session lifecycle, interactive conversation mode |
 | `conversation/` | Phase 6 | Thread management, reference resolution |
 | `worktrees/` | Phase 8 | Isolated workspace creation and management |

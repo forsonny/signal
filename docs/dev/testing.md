@@ -25,7 +25,7 @@ uv run pytest -k "executor"
 uv run pytest -v -x tests/unit/ai/
 ```
 
-Current test count: **169 tests, all passing**.
+Current test count: **219 tests, all passing**.
 
 ---
 
@@ -35,13 +35,13 @@ Current test count: **169 tests, all passing**.
 tests/
   conftest.py          -- shared fixtures used across all test modules
   unit/
-    core/              -- tests for types.py, models.py, config.py, errors.py
+    core/              -- tests for types.py, models.py, config.py, errors.py, protocols.py
     ai/                -- tests for ai/layer.py (LiteLLM mocked)
-    runtime/           -- tests for runtime/executor.py (AILayer mocked via Protocol)
+    runtime/           -- tests for executor.py (bus-based), bootstrap.py (wiring), runner.py (agentic loop)
     memory/            -- tests for memory/storage.py, index.py, engine.py
     agents/            -- tests for agents/base.py, host.py, prime.py, micro.py
     comms/             -- tests for comms/bus.py (MessageBus)
-    runtime/           -- tests for executor.py (bus-based), bootstrap.py (wiring)
+    tools/             -- tests for tools/protocol.py, registry.py, builtins/file_system.py
   integration/         -- CLI end-to-end tests
 ```
 
@@ -172,3 +172,40 @@ monkeypatch.setattr("litellm.acompletion", AsyncMock(return_value=fake_response)
 ```
 
 Use `monkeypatch.setattr` (pytest) rather than `unittest.mock.patch` decorators -- it integrates better with pytest fixtures and respects test isolation.
+
+### Tool Execution Tests
+
+Tool execution tests follow three patterns:
+
+**Mock AI with tool_calls:** Build a mock AI layer that returns responses with `tool_calls` on the first call and a final text response on the second. This drives the agentic loop through at least one tool execution cycle.
+
+```python
+@pytest.mark.asyncio
+async def test_runner_executes_tool():
+    tool_response = MagicMock()
+    tool_response.content = None
+    tool_response.tool_calls = [ToolCallRequest(id="1", name="read", arguments={"path": "f.txt"})]
+
+    final_response = MagicMock()
+    final_response.content = "done"
+    final_response.tool_calls = []
+
+    mock_ai = AsyncMock(side_effect=[tool_response, final_response])
+    mock_executor = AsyncMock(return_value=ToolResult(tool_call_id="1", output="contents"))
+
+    runner = AgenticRunner(ai=mock_ai, tool_executor=mock_executor, tool_schemas=[], max_iterations=5)
+    result = await runner.run([{"role": "user", "content": "read file"}])
+    assert result.tool_calls_made == 1
+```
+
+**Mock executor:** The ToolExecutor is a simple callable (`async (str, dict) -> ToolResult`). Replace it with an `AsyncMock` to verify the runner passes the correct tool name and arguments without needing real tool implementations.
+
+**tmp_path for FileSystemTool:** FileSystemTool is scoped to a workspace directory. Tests use pytest's `tmp_path` fixture as the workspace root, write test files, and verify read/write/list operations stay within bounds.
+
+```python
+def test_file_system_tool_reads(tmp_path):
+    (tmp_path / "test.txt").write_text("hello")
+    tool = FileSystemTool(workspace=tmp_path)
+    result = tool.execute(action="read", path="test.txt")
+    assert result.output == "hello"
+```

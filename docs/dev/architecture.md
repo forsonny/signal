@@ -8,27 +8,32 @@ This is the target architecture. The current implementation covers Phase 3 (see 
 
 ---
 
-## Current Architecture (Phase 3)
+## Current Architecture (Phase 4a)
 
-Phase 3 adds multi-agent routing to the Phase 2 memory foundation. User messages flow through Prime, get LLM-routed to micro-agents, and return results via the message bus.
+Phase 4a adds tool execution and an agentic loop to the Phase 3 multi-agent foundation. Agents can now call tools iteratively -- the runner calls AI, executes tool calls, feeds results back, and repeats until the AI returns a final text response or the iteration limit is reached.
 
 **Components built:**
 
 - `cli/` -- Typer-based CLI with `signal init`, `signal talk`, and `signal memory` commands
 - `core/config` -- YAML-backed config, instance management, profile loading
-- `core/models` -- Pydantic models: Profile, Memory, and supporting types
+- `core/models` -- Pydantic models: Profile, Memory, ToolCallRequest, ToolResult, ToolConfig, and supporting types
 - `core/types` -- Enums: AgentType, AgentStatus, TaskStatus, TaskPriority, MessageType, MemoryType
-- `ai/layer` -- LiteLLM wrapper, async completion, response normalization
+- `core/protocols` -- Protocol definitions: AILayerProtocol, RunnerProtocol, ToolExecutor
+- `ai/layer` -- LiteLLM wrapper, async completion with optional tools parameter, response normalization
 - `runtime/executor` -- Single-turn executor with error boundary
+- `runtime/runner` -- AgenticRunner: agentic loop with tool calling and two-tier iteration limits
+- `runtime/bootstrap` -- Single wiring point connecting all components (including tool pipeline)
 - `memory/storage` -- Atomic markdown file I/O with YAML frontmatter
 - `memory/index` -- Async SQLite metadata index with tag+recency scoring
 - `memory/engine` -- Orchestrator tying storage and index together
 - `agents/base` -- BaseAgent with template method for status management (BUSY/IDLE)
 - `agents/host` -- AgentHost registry, wires agents to the message bus
 - `agents/prime` -- PrimeAgent with LLM-based routing and direct handling fallback
-- `agents/micro` -- MicroAgent with skill-based system prompt template
+- `agents/micro` -- MicroAgent with skill-based system prompt, delegates to RunnerProtocol
 - `comms/bus` -- In-process MessageBus with talks_to enforcement and message logging
-- `runtime/bootstrap` -- Single wiring point connecting all components
+- `tools/protocol` -- ToolProtocol defining the interface all tools implement
+- `tools/registry` -- ToolRegistry for name-to-implementation lookup, LiteLLM-format schema generation
+- `tools/builtins/file_system` -- FileSystemTool: read/write/list, scoped to workspace, size-capped reads
 
 **Module dependency diagram:**
 
@@ -36,15 +41,38 @@ Phase 3 adds multi-agent routing to the Phase 2 memory foundation. User messages
 cli/ --> core/config --> core/models --> core/types
  |                         |
  +--> runtime/bootstrap --> agents/prime --> ai/layer --> LiteLLM
- |         |            --> agents/micro --> ai/layer
+ |         |            --> agents/micro --> core/protocols (RunnerProtocol)
  |         |            --> agents/host  --> comms/bus
+ |         |            --> runtime/runner --> core/protocols (AILayerProtocol, ToolExecutor)
+ |         |            --> tools/registry --> tools/protocol
+ |         |            --> tools/builtins/file_system
  |         +--> runtime/executor --> comms/bus
  |
  +--> memory/engine --> memory/storage --> core/models
                     --> memory/index   --> core/models
 ```
 
-No module imports upward. `core/` has no runtime dependencies. `memory/` depends only on `core/`. `cli/` orchestrates everything.
+No module imports upward. `core/` has no runtime dependencies. `memory/` depends only on `core/`. `tools/` depends only on `core/`. `cli/` orchestrates everything.
+
+### Tool Execution Architecture
+
+The agentic loop is the core of Phase 4a. It enables agents to call tools iteratively until the task is complete.
+
+**AgenticRunner loop:**
+
+1. Caller provides messages, tool schemas, and iteration limit.
+2. Runner calls AILayerProtocol.complete() with the messages and tool schemas.
+3. If the AI response contains `tool_calls`, the runner executes each via ToolExecutor and appends the results as tool-role messages.
+4. Steps 2-3 repeat until the AI returns a final text response (no tool calls) or the iteration limit is reached.
+5. Runner returns a RunnerResult with the final content, iteration count, and whether it was truncated.
+
+**ToolRegistry** maps tool names to their implementations (objects satisfying ToolProtocol). It produces LiteLLM-format tool schemas (function name, description, parameters as JSON Schema) for passing to the AI layer.
+
+**ToolExecutor** is a callable protocol (`async (str, dict) -> ToolResult`). In production, bootstrap wires it to call through the registry. In tests, it can be replaced with a simple mock. This is the hook point for Phase 4b, where pre/post-execution hooks will wrap this callable.
+
+**FileSystemTool** is the first built-in tool. It supports read, write, and list operations scoped to the instance workspace directory. Reads are size-capped to prevent token budget exhaustion.
+
+**Two-tier iteration limits:** A global ceiling is defined in configuration (hard upper bound). Each agent can also specify a per-agent limit via ToolConfig.max_iterations. The runner enforces whichever is lower.
 
 ### Multi-Agent Architecture
 
@@ -68,7 +96,7 @@ All I/O is `async`/`await` on a single `asyncio` event loop. Threads are not use
 
 ### Dependency Injection via Protocol
 
-The executor does not import `AILayer` directly. It depends on `AILayerProtocol`, a structural `typing.Protocol`. Any object that satisfies the protocol can be injected -- including mocks in tests. This keeps the runtime layer decoupled from the AI provider.
+The executor does not import `AILayer` directly. It depends on `AILayerProtocol`, a structural `typing.Protocol` defined in `core/protocols`. Any object that satisfies the protocol can be injected -- including mocks in tests. This keeps the runtime layer decoupled from the AI provider. The same principle applies to `RunnerProtocol` (used by MicroAgent) and `ToolExecutor` (used by AgenticRunner).
 
 ### Error Boundaries per Agent
 
@@ -76,7 +104,7 @@ Every agent execution is wrapped in a try/except. Exceptions are caught, logged,
 
 ### Event-Driven Internals
 
-Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4 adds hooks and plugins on top of the bus infrastructure already in place.
+Phase 3 introduced the in-process MessageBus. Agents communicate via typed messages; they do not call each other directly. This keeps coupling low and makes the execution graph inspectable. Phase 4b will add hooks and plugins on top of the bus and tool execution infrastructure.
 
 ### State Machines for Lifecycles
 

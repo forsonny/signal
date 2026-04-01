@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-03-31
+
+### Added
+- AgenticRunner with tool-calling agentic loop
+- Tool protocol, ToolRegistry with LiteLLM-format schema generation
+- FileSystemTool (read/write/list, scoped to workspace, size-capped reads)
+- ToolCallRequest, ToolResult, ToolConfig models
+- RunnerProtocol, ToolExecutor, AILayerProtocol in core/protocols
+- Two-tier iteration limits (global + per-agent)
+
+### Changed
+- AILayer.complete() accepts optional tools parameter
+- AIResponse includes tool_calls field
+- MicroAgent delegates to RunnerProtocol (no direct AI reference)
+- Bootstrap wires tool pipeline (registry, executor, runners)
+
 ## [0.3.0] - 2026-03-31
 
 ### Added

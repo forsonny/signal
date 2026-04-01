@@ -8,7 +8,7 @@ Signal gives you a single agent, Prime, that you talk to directly. Behind Prime 
 
 ## Current Status
 
-**Phase 3 of 10 complete.** Prime routes user messages to specialist micro-agents via LLM-based routing. Each micro-agent has its own skill-based system prompt and makes independent AI calls. An in-process message bus carries typed messages between agents with `talks_to` permission enforcement. When no specialist matches, Prime handles the request directly.
+**Phase 4a of 10 complete.** Agents can now call tools via an agentic loop -- the runner calls AI, executes tool calls, feeds results back, and repeats until the task is complete or the iteration limit is reached. The first built-in tool is `file_system` (read/write/list, scoped to workspace). Two-tier iteration limits (global ceiling + per-agent config) prevent runaway loops. Prime still routes to specialist micro-agents via the message bus.
 
 See the [roadmap](docs/dev/roadmap.md) for what is coming.
 
