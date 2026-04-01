@@ -1,6 +1,6 @@
 """Unit tests for bootstrap -- all real objects, only AILayer mocked."""
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from signalagent.ai.layer import AIResponse
 from signalagent.core.config import SignalConfig
