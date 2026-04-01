@@ -15,6 +15,7 @@ from signalagent.hooks.registry import HookRegistry
 from signalagent.runtime.executor import Executor
 from signalagent.runtime.runner import AgenticRunner
 from signalagent.tools.builtins import load_builtin_tool
+from signalagent.tools.builtins.spawn_sub_agent import SpawnSubAgentTool
 from signalagent.tools.registry import ToolRegistry
 
 
@@ -66,10 +67,63 @@ async def bootstrap(
     for micro_config in profile.micro_agents:
         agent_max = min(micro_config.max_iterations, global_max)
         tool_schemas = registry.get_schemas(micro_config.plugins)
-        runner = AgenticRunner(
-            ai=ai, tool_executor=tool_executor,
-            tool_schemas=tool_schemas, max_iterations=agent_max,
-        )
+
+        if micro_config.can_spawn_subs:
+            # Sub-agent runner factory: uses parent's tools (no spawn)
+            async def run_sub(
+                system_prompt: str, task: str,
+                _schemas=tool_schemas, _max=agent_max,
+            ) -> str:
+                sub_runner = AgenticRunner(
+                    ai=ai, tool_executor=tool_executor,
+                    tool_schemas=_schemas, max_iterations=_max,
+                )
+                result = await sub_runner.run(
+                    system_prompt=system_prompt, user_content=task,
+                )
+                return result.content
+
+            # Create spawn tool
+            spawn_tool = SpawnSubAgentTool(
+                run_sub=run_sub, parent_name=micro_config.name,
+            )
+
+            # Per-agent executor: intercepts spawn, delegates rest to shared
+            async def agent_inner(
+                tool_name: str, arguments: dict,
+                _spawn=spawn_tool, _shared=inner_executor,
+            ) -> ToolResult:
+                if tool_name == _spawn.name:
+                    return await _spawn.execute(**arguments)
+                return await _shared(tool_name, arguments)
+
+            # Wrap with hooks
+            agent_executor = HookExecutor(
+                inner=agent_inner, registry=hook_registry,
+            )
+
+            # Append spawn schema to full list
+            full_schemas = list(tool_schemas)
+            full_schemas.append({
+                "type": "function",
+                "function": {
+                    "name": spawn_tool.name,
+                    "description": spawn_tool.description,
+                    "parameters": spawn_tool.parameters,
+                },
+            })
+
+            runner = AgenticRunner(
+                ai=ai, tool_executor=agent_executor,
+                tool_schemas=full_schemas, max_iterations=agent_max,
+            )
+        else:
+            # No spawn capability -- use shared executor
+            runner = AgenticRunner(
+                ai=ai, tool_executor=tool_executor,
+                tool_schemas=tool_schemas, max_iterations=agent_max,
+            )
+
         agent = MicroAgent(config=micro_config, runner=runner)
         talks_to = set(micro_config.talks_to)
         host.register(agent, talks_to=talks_to)

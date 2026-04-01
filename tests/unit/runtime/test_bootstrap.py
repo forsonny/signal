@@ -67,6 +67,38 @@ def profile_with_hooks():
     )
 
 
+@pytest.fixture
+def profile_with_spawn():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(
+                name="manager", skill="Task management",
+                talks_to=["prime"], plugins=["file_system"],
+                can_spawn_subs=True,
+            ),
+        ],
+    )
+
+
+@pytest.fixture
+def profile_without_spawn():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(
+                name="worker", skill="Basic work",
+                talks_to=["prime"], plugins=["file_system"],
+                can_spawn_subs=False,
+            ),
+        ],
+    )
+
+
 class TestBootstrap:
     @pytest.mark.asyncio
     async def test_returns_executor_bus_host(self, tmp_path, config, profile_with_micros, monkeypatch):
@@ -141,3 +173,57 @@ class TestBootstrap:
         entry = json.loads(log_file.read_text().strip())
         assert entry["tool_name"] == "file_system"
         assert entry["blocked"] is False
+
+    @pytest.mark.asyncio
+    async def test_sub_agent_spawn_end_to_end(self, tmp_path, config, profile_with_spawn, monkeypatch):
+        """Micro-agent spawns sub-agent, sub-agent uses tool, result flows back."""
+        (tmp_path / "data.txt").write_text("secret info")
+
+        spawn_tc = ToolCallRequest(
+            id="call_1", name="spawn_sub_agent",
+            arguments={"task": "Read data.txt and summarize", "skill": "File analysis"},
+        )
+        file_tc = ToolCallRequest(
+            id="call_2", name="file_system",
+            arguments={"operation": "read", "path": "data.txt"},
+        )
+
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            # Prime routes to manager
+            _make_ai_response("manager"),
+            # Manager's runner: LLM calls spawn_sub_agent
+            _make_ai_response("", tool_calls=[spawn_tc]),
+            # Sub-agent's runner: LLM calls file_system
+            _make_ai_response("", tool_calls=[file_tc]),
+            # Sub-agent's runner: LLM returns final text
+            _make_ai_response("File contains: secret info"),
+            # Manager's runner: LLM returns final text (after getting spawn result)
+            _make_ai_response("Sub-agent found: secret info"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_spawn)
+        result = await executor.run("analyze data.txt")
+
+        assert result.content == "Sub-agent found: secret info"
+        assert result.error is None
+
+    @pytest.mark.asyncio
+    async def test_no_spawn_without_can_spawn_subs(self, tmp_path, config, profile_without_spawn, monkeypatch):
+        """Micro-agent without can_spawn_subs does NOT get spawn_sub_agent tool."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("worker"),
+            _make_ai_response("Done"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_without_spawn)
+
+        # Verify the worker's AI call did NOT receive spawn_sub_agent in tools
+        await executor.run("do something")
+        worker_call = mock_ai.complete.call_args_list[1]
+        tools = worker_call.kwargs.get("tools") or []
+        tool_names = [t["function"]["name"] for t in tools]
+        assert "spawn_sub_agent" not in tool_names
