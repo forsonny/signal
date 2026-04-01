@@ -12,6 +12,7 @@ from signalagent.core.models import Profile, ToolResult
 from signalagent.hooks.builtins import load_builtin_hook
 from signalagent.hooks.executor import HookExecutor
 from signalagent.hooks.registry import HookRegistry
+from signalagent.memory.engine import MemoryEngine
 from signalagent.runtime.executor import Executor
 from signalagent.runtime.runner import AgenticRunner
 from signalagent.tools.builtins import load_builtin_tool
@@ -28,6 +29,12 @@ async def bootstrap(
     ai = AILayer(config)
     bus = MessageBus()
     host = AgentHost(bus)
+
+    # Memory engine
+    engine = MemoryEngine(instance_dir)
+    await engine.initialize()
+
+    model_name = config.ai.default_model
 
     # Tool registry
     registry = ToolRegistry()
@@ -60,7 +67,10 @@ async def bootstrap(
 
     # Prime agent -- no agentic tool loop. If Prime gains tools in a
     # future phase, apply global_max cap here too.
-    prime = PrimeAgent(identity=profile.prime.identity, ai=ai, host=host, bus=bus)
+    prime = PrimeAgent(
+        identity=profile.prime.identity, ai=ai, host=host, bus=bus,
+        memory_reader=engine, model=model_name,
+    )
     host.register(prime, talks_to=None)
 
     # Micro-agents with runners
@@ -124,7 +134,10 @@ async def bootstrap(
                 tool_schemas=tool_schemas, max_iterations=agent_max,
             )
 
-        agent = MicroAgent(config=micro_config, runner=runner)
+        agent = MicroAgent(
+            config=micro_config, runner=runner,
+            memory_reader=engine, model=model_name,
+        )
         talks_to = set(micro_config.talks_to)
         host.register(agent, talks_to=talks_to)
 

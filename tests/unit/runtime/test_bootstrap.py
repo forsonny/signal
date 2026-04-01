@@ -1,6 +1,6 @@
 """Unit tests for bootstrap -- all real objects, only AILayer mocked."""
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from signalagent.ai.layer import AIResponse
 from signalagent.core.config import SignalConfig
@@ -97,6 +97,63 @@ def profile_without_spawn():
             ),
         ],
     )
+
+
+@pytest.fixture
+def profile_with_memory():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        micro_agents=[
+            MicroAgentConfig(
+                name="researcher", skill="Research",
+                talks_to=["prime"],
+            ),
+        ],
+    )
+
+
+class TestMemoryInjection:
+    @pytest.mark.asyncio
+    async def test_agents_receive_memory_engine(self, tmp_path, config, profile_with_memory, monkeypatch):
+        """Bootstrap injects memory engine into Prime and micro-agents."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("researcher"),
+            _make_ai_response("Done"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_memory)
+
+        # NOTE: host.get() returns BaseAgent. Accessing _memory_reader is a
+        # private attribute on PrimeAgent/MicroAgent. Use type: ignore to
+        # suppress linter warnings -- this is test code verifying bootstrap wiring.
+        prime = host.get(PRIME_AGENT)
+        assert prime._memory_reader is not None  # type: ignore[union-attr]
+
+        researcher = host.get("researcher")
+        assert researcher._memory_reader is not None  # type: ignore[union-attr]
+
+    @pytest.mark.asyncio
+    async def test_agents_receive_model_name(self, tmp_path, config, profile_with_memory, monkeypatch):
+        """Bootstrap passes model name to agents."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("researcher"),
+            _make_ai_response("Done"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_memory)
+
+        # Same type: ignore as above -- host.get() returns BaseAgent,
+        # _model is on the concrete agent types.
+        prime = host.get(PRIME_AGENT)
+        assert prime._model == config.ai.default_model  # type: ignore[union-attr]
+
+        researcher = host.get("researcher")
+        assert researcher._model == config.ai.default_model  # type: ignore[union-attr]
 
 
 class TestBootstrap:
