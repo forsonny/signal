@@ -804,9 +804,11 @@ class TestMemoryIntegration:
         )
         await bus.send(msg)
 
-        # First call is routing -- should NOT search memories
-        # Memory search should only be called if Prime handles directly
-        # In this case, routing succeeds, so search is never called
+        # Routing succeeded (AI returned "code-review"), so Prime dispatched
+        # to the micro-agent and never entered _handle_directly() where
+        # memory search happens. assert_not_called() is valid because this
+        # test verifies routing doesn't trigger memory retrieval -- NOT that
+        # Prime never uses memories (see test_handle_directly_enriches_prompt).
         mock_reader.search.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1091,12 +1093,15 @@ class TestMemoryInjection:
         executor, bus, host = await bootstrap(tmp_path, config, profile_with_memory)
 
         # Verify Prime has memory reader
+        # NOTE: host.get() returns BaseAgent. Accessing _memory_reader is a
+        # private attribute on PrimeAgent/MicroAgent. Use type: ignore to
+        # suppress linter warnings -- this is test code verifying bootstrap wiring.
         prime = host.get(PRIME_AGENT)
-        assert prime._memory_reader is not None
+        assert prime._memory_reader is not None  # type: ignore[union-attr]
 
         # Verify micro-agent has memory reader
         researcher = host.get("researcher")
-        assert researcher._memory_reader is not None
+        assert researcher._memory_reader is not None  # type: ignore[union-attr]
 
     @pytest.mark.asyncio
     async def test_agents_receive_model_name(self, tmp_path, config, profile_with_memory, monkeypatch):
@@ -1110,11 +1115,13 @@ class TestMemoryInjection:
 
         executor, bus, host = await bootstrap(tmp_path, config, profile_with_memory)
 
+        # Same type: ignore as above -- host.get() returns BaseAgent,
+        # _model is on the concrete agent types.
         prime = host.get(PRIME_AGENT)
-        assert prime._model == config.ai.default_model
+        assert prime._model == config.ai.default_model  # type: ignore[union-attr]
 
         researcher = host.get("researcher")
-        assert researcher._model == config.ai.default_model
+        assert researcher._model == config.ai.default_model  # type: ignore[union-attr]
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
