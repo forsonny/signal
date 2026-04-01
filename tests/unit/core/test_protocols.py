@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock
 
-from signalagent.core.protocols import AILayerProtocol
+from signalagent.core.protocols import AILayerProtocol, RunnerProtocol, ToolExecutor
 
 
 class TestAILayerProtocol:
@@ -16,3 +16,16 @@ class TestAILayerProtocol:
         class Bad:
             pass
         assert not isinstance(Bad(), AILayerProtocol)
+
+
+class TestRunnerProtocol:
+    def test_async_mock_satisfies_protocol(self):
+        mock = AsyncMock()
+        mock.run = AsyncMock()
+        assert isinstance(mock, RunnerProtocol)
+
+
+class TestToolExecutor:
+    def test_async_callable_satisfies_protocol(self):
+        mock = AsyncMock()
+        assert isinstance(mock, ToolExecutor)
