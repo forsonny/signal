@@ -1,6 +1,5 @@
 """Tests for core protocol definitions."""
 
-import pytest
 from unittest.mock import AsyncMock
 
 from signalagent.core.protocols import AILayerProtocol
