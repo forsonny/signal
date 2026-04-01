@@ -1,0 +1,13 @@
+"""Tool protocol -- interface every tool must implement."""
+from __future__ import annotations
+from typing import Protocol
+from signalagent.core.models import ToolResult
+
+class Tool(Protocol):
+    @property
+    def name(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+    @property
+    def parameters(self) -> dict: ...
+    async def execute(self, **kwargs) -> ToolResult: ...
