@@ -58,6 +58,9 @@ class MicroAgent(BaseAgent):
                 memories=memories,
                 model=self._model,
             )
+        elif memories:
+            logger.warning("Memories retrieved but no model set; skipping context injection")
+            system_prompt = self._build_identity()
         else:
             system_prompt = self._build_identity()
 

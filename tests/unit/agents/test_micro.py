@@ -106,6 +106,7 @@ class TestMicroAgentMemoryIntegration:
         mock_reader.search.assert_called_once()
         call_kwargs = mock_reader.search.call_args.kwargs
         assert call_kwargs["agent"] == "code-review"
+        assert call_kwargs["limit"] == 20  # DEFAULT_MEMORY_LIMIT
 
         system_prompt = mock_runner.run.call_args.kwargs["system_prompt"]
         assert "Relevant context" in system_prompt
