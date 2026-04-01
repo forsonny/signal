@@ -248,11 +248,31 @@ class AgenticRunner:
 1. Build initial messages: `[{"role": "system", ...}, {"role": "user", ...}]`
 2. Call `ai.complete(messages, tools=tool_schemas if tool_schemas else None)`
 3. If `response.tool_calls` is empty -- done, return final text
-4. Append assistant message (with tool_calls) to messages
+4. Append assistant message with tool calls to messages (LiteLLM input format):
+   ```python
+   messages.append({
+       "role": "assistant",
+       "tool_calls": [
+           {
+               "id": tc.id,
+               "type": "function",
+               "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
+           }
+           for tc in response.tool_calls
+       ],
+   })
+   ```
 5. For each `ToolCallRequest` in response.tool_calls:
    - Call `tool_executor(request.name, request.arguments)`
    - If executor raises an unexpected exception, catch it and convert to `ToolResult(output="", error=str(e))`
-   - Append tool result message to messages (standard tool-result format with tool_call_id)
+   - Append tool result message (must match tool_call_id from the request):
+     ```python
+     messages.append({
+         "role": "tool",
+         "tool_call_id": tc.id,
+         "content": result.output if not result.error else f"Error: {result.error}",
+     })
+     ```
 6. Increment iteration counter. If counter >= max_iterations, stop and return with truncated=True
 7. Go to step 2
 
