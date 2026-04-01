@@ -19,3 +19,7 @@ class InstanceError(SignalError):
 
 class MemoryStoreError(SignalError):
     """Memory storage, index, or retrieval failure."""
+
+
+class RoutingError(SignalError):
+    """Message routing failed -- no match, talks_to violation, unknown agent."""

@@ -1,10 +1,11 @@
 """Core data models for Signal profiles and agent configuration."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from signalagent.core.types import MemoryType
+from signalagent.core.types import MemoryType, MessageType
 
 
 class PrimeConfig(BaseModel):
@@ -79,3 +80,18 @@ class Memory(BaseModel):
     supersedes: list[str] = Field(default_factory=list)
     superseded_by: str | None = None
     consolidated_from: list[str] = Field(default_factory=list)
+
+
+class Message(BaseModel):
+    """Typed message passed between agents via the MessageBus."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    type: MessageType = Field(...)
+    sender: str
+    recipient: str
+    content: str
+    created: datetime | None = None
+    parent_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)

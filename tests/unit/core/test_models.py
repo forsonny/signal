@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 import yaml
@@ -11,8 +12,9 @@ from signalagent.core.models import (
     PluginsConfig,
     HeartbeatConfig,
     Memory,
+    Message,
 )
-from signalagent.core.types import MemoryType
+from signalagent.core.types import MemoryType, MessageType
 
 
 class TestPrimeConfig:
@@ -181,5 +183,62 @@ class TestMemory:
                 created=now,
                 updated=now,
                 accessed=now,
+                bogus="field",
+            )
+
+
+class TestMessage:
+    def test_construction_with_required_fields(self):
+        msg = Message(
+            type=MessageType.TASK,
+            sender="user",
+            recipient="prime",
+            content="hello",
+        )
+        assert msg.type == MessageType.TASK
+        assert msg.sender == "user"
+        assert msg.recipient == "prime"
+        assert msg.content == "hello"
+
+    def test_defaults(self):
+        msg = Message(
+            type=MessageType.TASK,
+            sender="user",
+            recipient="prime",
+            content="hello",
+        )
+        assert msg.id == ""
+        assert msg.created is None
+        assert msg.parent_id is None
+        assert msg.metadata == {}
+
+    def test_metadata_accepts_any_types(self):
+        msg = Message(
+            type=MessageType.TASK,
+            sender="user",
+            recipient="prime",
+            content="hello",
+            metadata={"confidence": 0.85, "agents": ["code-review", "git"]},
+        )
+        assert msg.metadata["confidence"] == 0.85
+        assert msg.metadata["agents"] == ["code-review", "git"]
+
+    def test_parent_id_threading(self):
+        msg = Message(
+            type=MessageType.RESULT,
+            sender="prime",
+            recipient="user",
+            content="done",
+            parent_id="msg_abc12345",
+        )
+        assert msg.parent_id == "msg_abc12345"
+
+    def test_extra_fields_rejected(self):
+        with pytest.raises(ValidationError):
+            Message(
+                type=MessageType.TASK,
+                sender="user",
+                recipient="prime",
+                content="hello",
                 bogus="field",
             )

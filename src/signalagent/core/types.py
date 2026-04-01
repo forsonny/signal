@@ -70,3 +70,10 @@ class MemoryType(str, Enum):
     OUTCOME = "outcome"
     CONTEXT = "context"
     SHARED = "shared"
+
+
+# Well-known agent/sender names. Used by the message bus for permission
+# bypass and by the executor as the sender identity. Centralised here
+# so no module uses magic strings.
+PRIME_AGENT = "prime"
+USER_SENDER = "user"
