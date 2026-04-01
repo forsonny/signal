@@ -95,9 +95,16 @@ class TestTalkCommand:
 
 
 class TestEndToEnd:
-    """Full pipeline: init -> talk with mocked LLM."""
+    """Full pipeline: init -> talk through multi-agent routing."""
 
-    def test_init_then_talk(self, tmp_path, monkeypatch, mock_ai_response):
+    def test_init_then_talk_with_blank_profile(self, tmp_path, monkeypatch, mock_ai_response):
+        """Blank profile has no micro-agents -- Prime handles directly.
+
+        This test patches litellm.acompletion with a single response.
+        It only works because blank profile has no micro-agents, so Prime
+        skips routing and handles directly (one LLM call). Tests with
+        micro-agent profiles need side_effect lists for sequential calls.
+        """
         monkeypatch.chdir(tmp_path)
 
         # Step 1: init
