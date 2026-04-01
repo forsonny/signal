@@ -29,3 +29,11 @@ class TestToolExecutor:
     def test_async_callable_satisfies_protocol(self):
         mock = AsyncMock()
         assert isinstance(mock, ToolExecutor)
+
+
+class TestMemoryReaderProtocol:
+    def test_memory_engine_satisfies_protocol(self):
+        """MemoryEngine must satisfy MemoryReaderProtocol at import time."""
+        from signalagent.core.protocols import MemoryReaderProtocol
+        from signalagent.memory.engine import MemoryEngine
+        assert issubclass(MemoryEngine, MemoryReaderProtocol)

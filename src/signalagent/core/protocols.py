@@ -45,3 +45,19 @@ class ToolExecutor(Protocol):
         tool_name: str,
         arguments: dict,
     ) -> Any: ...
+
+
+@runtime_checkable
+class MemoryReaderProtocol(Protocol):
+    """Protocol for memory retrieval so agents don't depend on concrete engine.
+    Same pattern as AILayerProtocol -- agents import this, bootstrap injects
+    the concrete MemoryEngine."""
+
+    async def search(
+        self,
+        tags: list[str] | None = None,
+        agent: str | None = None,
+        memory_type: str | None = None,
+        limit: int = 10,
+        touch: bool = False,
+    ) -> list[Any]: ...
