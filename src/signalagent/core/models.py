@@ -48,6 +48,13 @@ class HeartbeatConfig(BaseModel):
     condition_triggers: list[dict] = Field(default_factory=list)
 
 
+class HooksConfig(BaseModel):
+    """Active hooks configuration -- instance-wide tool call interception."""
+    model_config = ConfigDict(extra="forbid")
+
+    active: list[str] = Field(default_factory=list)
+
+
 class Profile(BaseModel):
     """A Signal profile -- defines what an instance becomes."""
     model_config = ConfigDict(extra="forbid")
@@ -59,6 +66,7 @@ class Profile(BaseModel):
     prime: PrimeConfig = Field(default_factory=PrimeConfig)
     micro_agents: list[MicroAgentConfig] = Field(default_factory=list)
     plugins: PluginsConfig = Field(default_factory=PluginsConfig)
+    hooks: HooksConfig = Field(default_factory=HooksConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
 
 

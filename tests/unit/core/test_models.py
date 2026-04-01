@@ -11,6 +11,7 @@ from signalagent.core.models import (
     MicroAgentConfig,
     PluginsConfig,
     HeartbeatConfig,
+    HooksConfig,
     Memory,
     Message,
     ToolCallRequest,
@@ -282,6 +283,30 @@ class TestToolConfig:
     def test_custom_max(self):
         tc = ToolConfig(max_iterations=50)
         assert tc.max_iterations == 50
+
+
+class TestHooksConfig:
+    def test_defaults(self):
+        hc = HooksConfig()
+        assert hc.active == []
+
+    def test_with_hooks(self):
+        hc = HooksConfig(active=["log_tool_calls", "path_guard"])
+        assert hc.active == ["log_tool_calls", "path_guard"]
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(ValidationError):
+            HooksConfig(active=[], extra="bad")
+
+
+class TestProfileHooksField:
+    def test_profile_has_hooks_default(self):
+        p = Profile(name="test")
+        assert p.hooks.active == []
+
+    def test_profile_with_hooks(self):
+        p = Profile(name="test", hooks=HooksConfig(active=["log_tool_calls"]))
+        assert p.hooks.active == ["log_tool_calls"]
 
 
 class TestMicroAgentConfigMaxIterations:
