@@ -69,7 +69,8 @@ class Hook(Protocol):
     ) -> ToolResult | None: ...
 
     async def after_tool_call(
-        self, tool_name: str, arguments: dict, result: ToolResult
+        self, tool_name: str, arguments: dict, result: ToolResult,
+        blocked: bool,
     ) -> None: ...
 ```
 
@@ -112,9 +113,9 @@ Implements the `ToolExecutor` protocol (async callable with `(tool_name, argumen
 
 **Lifecycle in `__call__`:**
 
-1. Run `before_tool_call` on each hook (sequential). If any returns a `ToolResult` (blocked), stop running remaining before hooks, skip tool execution, use the blocked result.
-2. If no hook blocked: call `self._inner(tool_name, arguments)`.
-3. Run `after_tool_call` on all hooks (sequential, always fires). Pass the result (whether from execution or from blocking).
+1. Run `before_tool_call` on each hook (sequential). If any returns a `ToolResult` (blocked), stop running remaining before hooks, skip tool execution, use the blocked result. Set `blocked = True`.
+2. If no hook blocked: call `self._inner(tool_name, arguments)`. Set `blocked = False`.
+3. Run `after_tool_call` on all hooks (sequential, always fires). Pass the result and `blocked` flag.
 4. Return the result.
 
 **Error handling in hooks:**
@@ -176,10 +177,11 @@ class LogToolCallsHook:
         return None  # always allows
 
     async def after_tool_call(
-        self, tool_name: str, arguments: dict, result: ToolResult
+        self, tool_name: str, arguments: dict, result: ToolResult,
+        blocked: bool,
     ) -> None:
         # Compute duration
-        # Append JSON line to log file
+        # Append JSON line to log file with blocked flag
 ```
 
 Each log entry (one JSON object per line):
@@ -196,7 +198,7 @@ Each log entry (one JSON object per line):
 ```
 
 - `error`: the error string if the tool call failed or was blocked, null on success
-- `blocked`: true if a before hook blocked the call (false for log_tool_calls since it never blocks, but other hooks may)
+- `blocked`: true if a before hook blocked the call. The `blocked` flag is passed explicitly by HookExecutor to `after_tool_call` -- hooks don't need to infer it.
 - `arguments`: logged in full (typically small)
 - Output is NOT logged (can be large). The `error` field captures failure information.
 
@@ -236,7 +238,7 @@ When no hooks are active, `HookRegistry.get_all()` returns an empty list, and `H
 
 ## Error Handling
 
-- **Hook blocks a call:** `before_tool_call` returns `ToolResult(output="", error="Blocked: {reason}")`. Tool execution is skipped. After hooks still fire with the blocked result.
+- **Hook blocks a call:** `before_tool_call` returns `ToolResult(output="", error="Blocked: {reason}")`. Tool execution is skipped. After hooks still fire with the blocked result and `blocked=True`.
 - **Hook raises exception (before):** Caught, logged as warning, treated as "allow" (fail open). Documented for future configurability.
 - **Hook raises exception (after):** Caught, logged as warning, swallowed. Result already determined, nothing to change.
 - **Log file write fails:** Caught within `log_tool_calls` hook. The hook's own error handling swallows the I/O error with a log warning. Tool execution is not affected.
