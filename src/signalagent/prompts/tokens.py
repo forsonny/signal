@@ -1,0 +1,24 @@
+"""Token counting utilities -- thin wrapper around LiteLLM.
+
+Isolates LiteLLM's token API so callers don't depend on it directly.
+If LiteLLM's interface changes, only this file needs updating.
+"""
+
+from __future__ import annotations
+
+import litellm
+
+
+def count_tokens(text: str, model: str) -> int:
+    """Count tokens for text using the model's tokenizer."""
+    return litellm.token_counter(model=model, text=text)
+
+
+def get_context_window(model: str) -> int:
+    """Get the model's max input token limit.
+
+    Uses max_input_tokens (the input context window), NOT
+    get_max_tokens() which returns max output tokens.
+    """
+    info = litellm.get_model_info(model)
+    return info["max_input_tokens"]
