@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2026-04-02
+
+### Added
+- WorktreeManager: git worktree creation (git worktree add) and directory copy fallback
+- WorktreeProxy: per-agent tool executor wrapper with lazy worktree creation on first write
+- WorktreeManifest: JSONL persistence for worktree lifecycle tracking
+- WorktreeResult and WorktreeRecord Pydantic models
+- WorktreeProxyProtocol in core/protocols for dependency injection
+- `signal worktree list` command showing pending worktrees
+- `signal worktree merge <id>` command copying changed files to workspace
+- `signal worktree discard <id>` command removing worktree without merging
+- Shared IGNORE_DIRS constant in core/constants (used by FileChangeDetector and WorktreeManager)
+
+### Changed
+- MicroAgent accepts optional WorktreeProxyProtocol, appends review instructions after file writes
+- MicroAgent preserves worktree state on runner failure (partial changes reviewable)
+- Bootstrap wraps each micro-agent's tool executor with WorktreeProxy (outermost layer)
+- FileChangeDetector imports IGNORE_DIRS from shared constant instead of local definition
+
 ## [0.9.0] - 2026-04-02
 
 ### Added

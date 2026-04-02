@@ -13,7 +13,8 @@
 | 5 | Prompt Construction | Complete | Token budgeting via LiteLLM, pure-function builder, MemoryReaderProtocol, agent memory injection |
 | 6 | Sessions + Conversation | Complete | JSONL session persistence, interactive REPL, conversation history injection |
 | 7 | Heartbeat Daemon | Complete | In-process async scheduler, clock triggers (cron), file event triggers (git-status polling), safety guards |
-| 8 | Worktrees + Forks | Planned | Isolated workspaces, parallel approaches |
+| 8a | Worktrees | Complete | Isolated workspaces, git worktrees, CLI review |
+| 8b | Forks | Planned | Parallel approaches, multi-worktree coordination |
 | 9 | Memory Advanced | Planned | Anti-corruption, consolidation, decay, embeddings |
 | 10 | Safety + Docker + Full CLI | Planned | Policy engine, containerization, all commands |
 
@@ -26,7 +27,7 @@ The phases form a directed dependency chain. Phase 1 (Skeleton) is the foundatio
 ```
 1 --> 2 --> 3 --> 4 \
                --> 5 --> 6 --> 7
-                             --> 8
+                             --> 8a --> 8b
                --> 9 (also needs 2)
                --> 10 (needs all)
 ```
