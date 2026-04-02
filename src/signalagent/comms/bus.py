@@ -9,9 +9,11 @@ from datetime import datetime, timezone
 
 from signalagent.core.errors import RoutingError
 from signalagent.core.models import Message
-from signalagent.core.types import USER_SENDER
+from signalagent.core.types import HEARTBEAT_SENDER, USER_SENDER
 
 logger = logging.getLogger(__name__)
+
+_VIRTUAL_SENDERS = frozenset({USER_SENDER, HEARTBEAT_SENDER})
 
 MessageHandler = Callable[[Message], Awaitable[Message | None]]
 
@@ -79,16 +81,16 @@ class MessageBus:
         sender = message.sender
         recipient = message.recipient
 
-        # Sender validation: must be registered OR be USER_SENDER
-        if sender != USER_SENDER and sender not in self._handlers:
+        # Sender validation: must be registered OR be a virtual sender
+        if sender not in _VIRTUAL_SENDERS and sender not in self._handlers:
             raise RoutingError(f"Sender '{sender}' is not registered")
 
         # Recipient validation: must be registered
         if recipient not in self._handlers:
             raise RoutingError(f"Recipient '{recipient}' is not registered")
 
-        # talks_to enforcement: skip for USER_SENDER and unrestricted agents
-        if sender != USER_SENDER:
+        # talks_to enforcement: skip for virtual senders and unrestricted agents
+        if sender not in _VIRTUAL_SENDERS:
             allowed = self._permissions.get(sender)
             if allowed is not None and recipient not in allowed:
                 raise RoutingError(

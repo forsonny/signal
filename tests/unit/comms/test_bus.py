@@ -11,6 +11,7 @@ from signalagent.core.types import (
     MessageType,
     PRIME_AGENT,
     USER_SENDER,
+    HEARTBEAT_SENDER,
 )
 
 
@@ -251,3 +252,39 @@ class TestLog:
 
         assert len(bus.log) == 2
         assert bus.log[1].content == "done"
+
+
+class TestVirtualSenders:
+    @pytest.mark.asyncio
+    async def test_heartbeat_sender_allowed_without_registration(self):
+        bus = MessageBus()
+        handler_prime = AsyncMock(return_value=None)
+        bus.register(PRIME_AGENT, handler_prime, talks_to=None)
+
+        msg = _make_message(sender=HEARTBEAT_SENDER, recipient=PRIME_AGENT,
+                            msg_type=MessageType.TRIGGER)
+        await bus.send(msg)
+
+        handler_prime.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_user_sender_still_works(self):
+        """Existing USER_SENDER bypass not broken by virtual sender refactor."""
+        bus = MessageBus()
+        handler_prime = AsyncMock(return_value=None)
+        bus.register(PRIME_AGENT, handler_prime, talks_to=None)
+
+        msg = _make_message(sender=USER_SENDER, recipient=PRIME_AGENT)
+        await bus.send(msg)
+
+        handler_prime.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_non_virtual_unregistered_sender_rejected(self):
+        """Non-virtual senders still require registration."""
+        bus = MessageBus()
+        bus.register(PRIME_AGENT, AsyncMock(), talks_to=None)
+
+        msg = _make_message(sender="rogue-agent", recipient=PRIME_AGENT)
+        with pytest.raises(RoutingError, match="not registered"):
+            await bus.send(msg)
