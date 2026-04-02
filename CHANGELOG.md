@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2026-04-02
+
+### Added
+- ForkRunner: semaphore-bounded parallel task execution with asyncio.gather
+- ForkResult model for fork branch results
+- ForkConfig with max_concurrent_branches (default 2) on Profile
+- WORKTREE_MERGE_PATTERN shared constant for worktree ID extraction
+- `signal fork "task A" "task B"` CLI command for parallel approaches
+- `--concurrency` flag to override max_concurrent_branches per invocation
+
+### Changed
+- WorktreeProxy gains asyncio.Lock and task_lock() for fork branch serialization
+- WorktreeProxyProtocol gains task_lock() method
+- MicroAgent._handle() acquires task_lock() around full task lifecycle
+- MicroAgent._handle() refactored to _handle/_handle_inner for lock wrapping
+
 ## [0.10.0] - 2026-04-02
 
 ### Added
