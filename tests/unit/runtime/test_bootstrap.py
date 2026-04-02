@@ -11,6 +11,7 @@ from signalagent.core.models import (
     PluginsConfig,
     HooksConfig,
     HeartbeatConfig,
+    MemoryKeeperConfig,
     ToolCallRequest,
 )
 from signalagent.heartbeat.models import ClockTrigger, TriggerGuards
@@ -433,3 +434,79 @@ class TestWorktreeBootstrap:
         assert not (tmp_path / "test.py").exists()
         # The response should include worktree review instructions
         assert "signal worktree merge" in result.content
+
+
+@pytest.fixture
+def profile_with_memory_keeper():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        memory_keeper=MemoryKeeperConfig(),
+    )
+
+
+@pytest.fixture
+def profile_without_memory_keeper():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+    )
+
+
+class TestMemoryKeeperBootstrap:
+    @pytest.mark.asyncio
+    async def test_memory_keeper_created_when_config_present(
+        self, tmp_path, config, profile_with_memory_keeper, monkeypatch,
+    ):
+        """Bootstrap creates MemoryKeeperAgent when memory_keeper config is present."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        mock_scheduler_cls = MagicMock()
+        mock_scheduler_instance = MagicMock()
+        mock_scheduler_instance.start = AsyncMock()
+        mock_scheduler_cls.return_value = mock_scheduler_instance
+        monkeypatch.setattr("signalagent.runtime.bootstrap.HeartbeatScheduler", mock_scheduler_cls)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_memory_keeper)
+
+        keeper = host.get("memory-keeper")
+        assert keeper is not None
+        assert keeper.agent_type.value == "memory_keeper"
+
+    @pytest.mark.asyncio
+    async def test_memory_keeper_not_created_when_config_absent(
+        self, tmp_path, config, profile_without_memory_keeper, monkeypatch,
+    ):
+        """Bootstrap does NOT create MemoryKeeperAgent when config is absent."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_without_memory_keeper)
+
+        keeper = host.get("memory-keeper")
+        assert keeper is None
+
+    @pytest.mark.asyncio
+    async def test_memory_keeper_heartbeat_trigger_registered(
+        self, tmp_path, config, profile_with_memory_keeper, monkeypatch,
+    ):
+        """Bootstrap registers a ClockTrigger for the MemoryKeeper."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        mock_scheduler_cls = MagicMock()
+        mock_scheduler_instance = MagicMock()
+        mock_scheduler_instance.start = AsyncMock()
+        mock_scheduler_cls.return_value = mock_scheduler_instance
+        monkeypatch.setattr("signalagent.runtime.bootstrap.HeartbeatScheduler", mock_scheduler_cls)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_memory_keeper)
+
+        mock_scheduler_cls.assert_called_once()
+        triggers = mock_scheduler_cls.call_args[1]["triggers"]
+        trigger_names = [t.name for t in triggers]
+        assert "memory-keeper-maintenance" in trigger_names
