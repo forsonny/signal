@@ -179,6 +179,32 @@ class TestHooksInIsolatedMode:
 
         assert result.error == "Blocked by policy"
 
+    @pytest.mark.asyncio
+    async def test_before_hook_crash_fails_open(
+        self, proxy: WorktreeProxy, mock_manager: MagicMock,
+    ) -> None:
+        mock_manager.create.return_value = Path("/tmp/wt")
+
+        class CrashingHook:
+            name = "crasher"
+            async def before_tool_call(self, tool_name, arguments):
+                raise RuntimeError("hook exploded")
+            async def after_tool_call(self, tool_name, arguments, result, blocked):
+                pass
+
+        proxy._hook_registry.get_all.return_value = [CrashingHook()]
+
+        with patch.object(proxy, "_execute_in_worktree", new_callable=AsyncMock) as mock_exec:
+            # Trigger isolation first with no hooks
+            proxy._hook_registry.get_all.return_value = []
+            await proxy("file_system", {"operation": "write", "path": "f.py", "content": "x"})
+            # Now add crashing hook
+            proxy._hook_registry.get_all.return_value = [CrashingHook()]
+            result = await proxy("file_system", {"operation": "write", "path": "g.py", "content": "y"})
+
+        # Execution should proceed despite hook crash (fail-open)
+        mock_exec.assert_called()
+
 
 class TestTakeResult:
     @pytest.mark.asyncio
@@ -212,3 +238,51 @@ class TestTakeResult:
 
     def test_satisfies_protocol(self) -> None:
         assert issubclass(WorktreeProxy, WorktreeProxyProtocol)
+
+    @pytest.mark.asyncio
+    async def test_proxy_reusable_after_take(
+        self, proxy: WorktreeProxy, mock_manager: MagicMock, mock_manifest: MagicMock,
+    ) -> None:
+        """After take_result(), a second write creates a new worktree."""
+        mock_manager.create.return_value = Path("/tmp/wt")
+        with patch.object(proxy, "_execute_in_worktree", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = ToolResult(output="ok")
+            # First task: write triggers isolation
+            await proxy("file_system", {"operation": "write", "path": "f.py", "content": "x"})
+
+        first_result = proxy.take_result()
+        assert first_result is not None
+
+        # Second task: another write should create a NEW worktree
+        mock_manager.create.return_value = Path("/tmp/wt2")
+        with patch.object(proxy, "_execute_in_worktree", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = ToolResult(output="ok")
+            await proxy("file_system", {"operation": "write", "path": "g.py", "content": "y"})
+
+        second_result = proxy.take_result()
+        assert second_result is not None
+        # Should be a different worktree ID
+        assert first_result.id != second_result.id
+        # Manager.create should have been called twice total
+        assert mock_manager.create.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_result_includes_all_fields(
+        self, proxy: WorktreeProxy, mock_manager: MagicMock,
+    ) -> None:
+        mock_manager.create.return_value = Path("/tmp/wt")
+        mock_manager.changed_files.return_value = ["a.py", "b.py"]
+        mock_manager.diff.return_value = "diff content"
+        mock_manager.is_git = True
+
+        with patch.object(proxy, "_execute_in_worktree", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = ToolResult(output="ok")
+            await proxy("file_system", {"operation": "write", "path": "f.py", "content": "x"})
+
+        result = proxy.take_result()
+        assert result is not None
+        assert result.changed_files == ["a.py", "b.py"]
+        assert result.diff == "diff content"
+        assert result.is_git is True
+        assert result.agent_name == "coder"
+        assert result.id.startswith("wt_")
