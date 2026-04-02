@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock
 
-from signalagent.core.protocols import AILayerProtocol, RunnerProtocol, ToolExecutor
+from signalagent.core.protocols import AILayerProtocol, RunnerProtocol, ToolExecutor, WorktreeProxyProtocol
 
 
 class TestAILayerProtocol:
@@ -47,9 +47,6 @@ class TestRunnerProtocolHistory:
         from signalagent.runtime.runner import AgenticRunner
         from signalagent.core.protocols import RunnerProtocol
         assert issubclass(AgenticRunner, RunnerProtocol)
-
-
-from signalagent.core.protocols import WorktreeProxyProtocol
 
 
 class _FakeWorktreeProxy:
