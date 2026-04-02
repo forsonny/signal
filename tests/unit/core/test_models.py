@@ -17,8 +17,11 @@ from signalagent.core.models import (
     ToolCallRequest,
     ToolResult,
     ToolConfig,
+    Turn,
+    SessionSummary,
 )
 from signalagent.core.types import MemoryType, MessageType
+from signalagent.heartbeat.models import ClockTrigger, FileEventTrigger, TriggerGuards
 
 
 class TestPrimeConfig:
@@ -317,3 +320,75 @@ class TestMicroAgentConfigMaxIterations:
     def test_custom_max_iterations(self):
         config = MicroAgentConfig(name="test", skill="testing", max_iterations=5)
         assert config.max_iterations == 5
+
+
+class TestTurnModel:
+    def test_turn_creation(self):
+        now = datetime.now(timezone.utc)
+        turn = Turn(role="user", content="hello", timestamp=now)
+        assert turn.role == "user"
+        assert turn.content == "hello"
+        assert turn.timestamp == now
+
+    def test_turn_forbids_extra_fields(self):
+        with pytest.raises(Exception):
+            Turn(role="user", content="hi", timestamp=datetime.now(timezone.utc), extra="bad")
+
+
+class TestSessionSummaryModel:
+    def test_session_summary_creation(self):
+        now = datetime.now(timezone.utc)
+        summary = SessionSummary(id="ses_abc12345", created=now, preview="hello world", turn_count=5)
+        assert summary.id == "ses_abc12345"
+        assert summary.turn_count == 5
+
+
+class TestHeartbeatSender:
+    def test_heartbeat_sender_value(self):
+        from signalagent.core.types import HEARTBEAT_SENDER
+        assert HEARTBEAT_SENDER == "heartbeat"
+
+
+class TestHeartbeatConfig:
+    def test_defaults_empty(self):
+        hc = HeartbeatConfig()
+        assert hc.clock_triggers == []
+        assert hc.event_triggers == []
+
+    def test_with_clock_trigger(self):
+        hc = HeartbeatConfig(
+            clock_triggers=[
+                ClockTrigger(name="test", cron="* * * * *", recipient="prime"),
+            ],
+        )
+        assert len(hc.clock_triggers) == 1
+        assert hc.clock_triggers[0].name == "test"
+
+    def test_with_event_trigger(self):
+        hc = HeartbeatConfig(
+            event_triggers=[
+                FileEventTrigger(name="watch", recipient="prime"),
+            ],
+        )
+        assert len(hc.event_triggers) == 1
+
+    def test_rejects_condition_triggers(self):
+        """condition_triggers field removed -- extra fields forbidden."""
+        with pytest.raises(ValidationError):
+            HeartbeatConfig(condition_triggers=[])
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(ValidationError):
+            HeartbeatConfig(bogus="x")
+
+
+class TestMessageHistory:
+    def test_message_history_defaults_to_empty_list(self):
+        msg = Message(type=MessageType.TASK, sender="user", recipient="prime", content="hi")
+        assert msg.history == []
+
+    def test_message_with_history(self):
+        history = [{"role": "user", "content": "prior"}, {"role": "assistant", "content": "reply"}]
+        msg = Message(type=MessageType.TASK, sender="user", recipient="prime", content="new", history=history)
+        assert len(msg.history) == 2
+        assert msg.history[0]["role"] == "user"

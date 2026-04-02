@@ -77,3 +77,4 @@ class MemoryType(str, Enum):
 # so no module uses magic strings.
 PRIME_AGENT = "prime"
 USER_SENDER = "user"
+HEARTBEAT_SENDER = "heartbeat"

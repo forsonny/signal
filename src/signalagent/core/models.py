@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from signalagent.core.types import MemoryType, MessageType
+from signalagent.heartbeat.models import ClockTrigger, FileEventTrigger
 
 
 class PrimeConfig(BaseModel):
@@ -43,9 +44,8 @@ class HeartbeatConfig(BaseModel):
     """Heartbeat trigger configuration from a profile."""
     model_config = ConfigDict(extra="forbid")
 
-    clock_triggers: list[dict] = Field(default_factory=list)
-    event_triggers: list[dict] = Field(default_factory=list)
-    condition_triggers: list[dict] = Field(default_factory=list)
+    clock_triggers: list[ClockTrigger] = Field(default_factory=list)
+    event_triggers: list[FileEventTrigger] = Field(default_factory=list)
 
 
 class HooksConfig(BaseModel):
@@ -104,6 +104,32 @@ class Message(BaseModel):
     created: datetime | None = None
     parent_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    history: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class Turn(BaseModel):
+    """A single conversational turn at the Prime level.
+
+    Captures what the user said and what Prime responded. Internal agent
+    execution (tool calls, micro-agent delegation) is invisible at this
+    level -- it's contained within a single assistant turn. If a future
+    phase needs to replay internal tool chains, Turn would need extending.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    role: str
+    content: str
+    timestamp: datetime
+
+
+class SessionSummary(BaseModel):
+    """Lightweight session listing entry."""
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    created: datetime
+    preview: str
+    turn_count: int
 
 
 class ToolCallRequest(BaseModel):
