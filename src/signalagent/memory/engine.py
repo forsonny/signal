@@ -30,10 +30,11 @@ class MemoryEngine:
     at startup -- not recreated per operation.
     """
 
-    def __init__(self, instance_dir: Path) -> None:
+    def __init__(self, instance_dir: Path, decay_half_life_days: int = 30) -> None:
         self._memory_dir = instance_dir / "memory"
         self._storage = MemoryStorage(self._memory_dir)
         self._index = MemoryIndex(self._memory_dir / "index.db")
+        self._decay_half_life_days = decay_half_life_days
 
     async def initialize(self) -> None:
         """Initialize the SQLite index. Call once at startup."""
@@ -96,6 +97,7 @@ class MemoryEngine:
             agent=agent,
             memory_type=memory_type,
             limit=limit,
+            decay_half_life_days=self._decay_half_life_days,
         )
         memories: list[Memory] = []
         for row in results:
