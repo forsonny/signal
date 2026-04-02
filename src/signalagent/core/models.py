@@ -55,6 +55,13 @@ class HooksConfig(BaseModel):
     active: list[str] = Field(default_factory=list)
 
 
+class ForkConfig(BaseModel):
+    """Fork execution configuration -- parallel approach exploration."""
+    model_config = ConfigDict(extra="forbid")
+
+    max_concurrent_branches: int = Field(default=2, ge=1)
+
+
 class Profile(BaseModel):
     """A Signal profile -- defines what an instance becomes."""
     model_config = ConfigDict(extra="forbid")
@@ -68,6 +75,7 @@ class Profile(BaseModel):
     plugins: PluginsConfig = Field(default_factory=PluginsConfig)
     hooks: HooksConfig = Field(default_factory=HooksConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
+    fork: ForkConfig = Field(default_factory=ForkConfig)
 
 
 class Memory(BaseModel):

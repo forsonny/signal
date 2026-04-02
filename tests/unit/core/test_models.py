@@ -12,6 +12,7 @@ from signalagent.core.models import (
     PluginsConfig,
     HeartbeatConfig,
     HooksConfig,
+    ForkConfig,
     Memory,
     Message,
     ToolCallRequest,
@@ -392,3 +393,28 @@ class TestMessageHistory:
         msg = Message(type=MessageType.TASK, sender="user", recipient="prime", content="new", history=history)
         assert len(msg.history) == 2
         assert msg.history[0]["role"] == "user"
+
+
+class TestForkConfig:
+    def test_default_values(self) -> None:
+        config = ForkConfig()
+        assert config.max_concurrent_branches == 2
+
+    def test_custom_value(self) -> None:
+        config = ForkConfig(max_concurrent_branches=4)
+        assert config.max_concurrent_branches == 4
+
+    def test_extra_forbidden(self) -> None:
+        with pytest.raises(Exception):
+            ForkConfig(max_concurrent_branches=2, surprise="bad")
+
+    def test_minimum_one(self) -> None:
+        with pytest.raises(Exception):
+            ForkConfig(max_concurrent_branches=0)
+
+
+class TestProfileWithFork:
+    def test_profile_has_fork_config(self) -> None:
+        p = Profile(name="test")
+        assert isinstance(p.fork, ForkConfig)
+        assert p.fork.max_concurrent_branches == 2

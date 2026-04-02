@@ -15,3 +15,6 @@ plugins:
 heartbeat:
   clock_triggers: []
   event_triggers: []
+
+fork:
+  max_concurrent_branches: 2
