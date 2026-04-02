@@ -83,6 +83,20 @@ class TestListMicroAgents:
         assert host.list_micro_agents() == []
 
 
+class TestListMicroAgentsIncludesKeeper:
+    def test_includes_memory_keeper_type(self, host: AgentHost):
+        micro = StubAgent(name="code-review", agent_type=AgentType.MICRO)
+        keeper = StubAgent(name="memory-keeper", agent_type=AgentType.MEMORY_KEEPER)
+
+        host.register(micro)
+        host.register(keeper)
+
+        agents = host.list_micro_agents()
+        names = {a.name for a in agents}
+        assert "code-review" in names
+        assert "memory-keeper" in names
+
+
 class TestUnregister:
     def test_unregister_sets_archived(self, host: AgentHost):
         agent = StubAgent(name="agent-a", agent_type=AgentType.MICRO)
