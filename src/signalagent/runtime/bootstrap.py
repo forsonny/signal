@@ -14,6 +14,7 @@ from signalagent.hooks.executor import HookExecutor
 from signalagent.hooks.registry import HookRegistry
 from signalagent.memory.engine import MemoryEngine
 from signalagent.runtime.executor import Executor
+from signalagent.sessions.manager import SessionManager
 from signalagent.runtime.runner import AgenticRunner
 from signalagent.tools.builtins import load_builtin_tool
 from signalagent.tools.builtins.spawn_sub_agent import SpawnSubAgentTool
@@ -141,5 +142,8 @@ async def bootstrap(
         talks_to = set(micro_config.talks_to)
         host.register(agent, talks_to=talks_to)
 
-    executor = Executor(bus=bus)
+    # Session manager
+    session_manager = SessionManager(instance_dir / "data" / "sessions")
+
+    executor = Executor(bus=bus, session_manager=session_manager)
     return executor, bus, host

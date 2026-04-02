@@ -284,3 +284,27 @@ class TestBootstrap:
         tools = worker_call.kwargs.get("tools") or []
         tool_names = [t["function"]["name"] for t in tools]
         assert "spawn_sub_agent" not in tool_names
+
+
+class TestSessionManagerInjection:
+    @pytest.mark.asyncio
+    async def test_executor_has_session_manager(self, tmp_path, config, profile_no_micros, monkeypatch):
+        """Bootstrap injects SessionManager into Executor."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_no_micros)
+
+        assert executor._session_manager is not None  # type: ignore[union-attr]
+
+    @pytest.mark.asyncio
+    async def test_sessions_directory_exists(self, tmp_path, config, profile_no_micros, monkeypatch):
+        """Bootstrap ensures data/sessions directory exists."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        await bootstrap(tmp_path, config, profile_no_micros)
+
+        assert (tmp_path / "data" / "sessions").is_dir()
