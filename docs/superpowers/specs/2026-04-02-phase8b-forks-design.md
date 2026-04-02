@@ -65,7 +65,9 @@ The orchestrator. Created by the `signal fork` CLI command.
 
 ### Worktree ID Extraction
 
-Each fork branch's response content includes `signal worktree merge <id>` if the agent wrote files (appended by MicroAgent in Phase 8a). The ForkRunner extracts the worktree ID from this line using a simple regex (`r"signal worktree merge (wt_[a-f0-9]+)"`). If no match, the branch produced no file changes.
+Each fork branch's response content includes `signal worktree merge <id>` if the agent wrote files (appended by MicroAgent in Phase 8a). The ForkRunner extracts the worktree ID from this line using a shared regex constant. If no match, the branch produced no file changes.
+
+The regex pattern is defined once as a shared constant (`WORKTREE_MERGE_PATTERN` in `worktrees/models.py`) and used by both MicroAgent (which generates the instruction text) and ForkRunner (which parses it). One source of truth for the format -- if the instruction text changes, the regex stays in sync.
 
 Changed files for each worktree are retrieved from the manifest via `manifest.get(worktree_id)` and `manager.changed_files(worktree_path)`. This reuses the existing manifest lookup -- no snapshot diffing needed.
 
