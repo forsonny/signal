@@ -119,6 +119,33 @@ class TestMtimeMode:
         result = detector.check()
         assert result == []
 
+    def test_detects_deleted_file(self, tmp_path):
+        (tmp_path / "gone.txt").write_text("bye")
+        detector = FileChangeDetector(tmp_path)
+
+        # Baseline: file exists
+        detector.check()
+
+        # Delete file
+        (tmp_path / "gone.txt").unlink()
+        result = detector.check()
+        assert "gone.txt" in result
+
+    def test_detects_modified_file(self, tmp_path):
+        f = tmp_path / "data.txt"
+        f.write_text("v1")
+        detector = FileChangeDetector(tmp_path)
+
+        # Baseline
+        detector.check()
+
+        # Modify (write new content to change mtime)
+        import time
+        time.sleep(0.05)  # ensure mtime differs
+        f.write_text("v2")
+        result = detector.check()
+        assert "data.txt" in result
+
     def test_skips_ignored_dirs(self, tmp_path):
         pycache = tmp_path / "__pycache__"
         pycache.mkdir()
@@ -130,6 +157,17 @@ class TestMtimeMode:
 
 
 class TestErrorHandling:
+    def test_git_nonzero_returncode_returns_empty(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        detector = FileChangeDetector(tmp_path)
+
+        with patch("signalagent.heartbeat.detector.subprocess") as mock_sub:
+            mock_sub.run.return_value = MagicMock(
+                returncode=128, stdout="", stderr="fatal: not a git repo",
+            )
+            result = detector.check()
+            assert result == []
+
     def test_git_subprocess_failure_returns_empty(self, tmp_path):
         (tmp_path / ".git").mkdir()
         detector = FileChangeDetector(tmp_path)
