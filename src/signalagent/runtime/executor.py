@@ -63,6 +63,12 @@ class Executor:
         Returns:
             ExecutorResult with content or error. Never raises.
         """
+        if session_id and not self._session_manager:
+            return ExecutorResult(
+                content="",
+                error="Session requested but no SessionManager configured",
+            )
+
         history: list[dict[str, Any]] = []
         if session_id and self._session_manager:
             turns = self._session_manager.load(session_id)

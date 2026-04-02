@@ -171,3 +171,14 @@ class TestSessionAwareExecutor:
         result = await executor.run("hello")
 
         assert result.content == "reply"
+
+    @pytest.mark.asyncio
+    async def test_session_id_without_session_manager_returns_error(self):
+        """Session ID with no SessionManager returns error, not silent fallthrough."""
+        mock_bus = AsyncMock()
+        executor = Executor(bus=mock_bus)
+        result = await executor.run("hello", session_id="ses_test0001")
+
+        assert result.error is not None
+        assert "SessionManager" in result.error
+        mock_bus.send.assert_not_called()
