@@ -281,6 +281,46 @@ class TestDispatch:
         assert "watch" not in scheduler._pending_changes  # consumed
 
 
+class TestDuplicateNames:
+    def test_rejects_duplicate_trigger_names(self):
+        t1 = ClockTrigger(name="dupe", cron="* * * * *", recipient="prime")
+        t2 = ClockTrigger(name="dupe", cron="0 * * * *", recipient="prime")
+        with pytest.raises(ValueError, match="Duplicate trigger names"):
+            HeartbeatScheduler(bus=MagicMock(), triggers=[t1, t2])
+
+
+class TestLoopResilience:
+    @pytest.mark.asyncio
+    async def test_loop_survives_trigger_exception(self):
+        """A bad trigger must not kill the scheduler loop."""
+        trigger = ClockTrigger(
+            name="bad", cron="* * * * *", recipient="prime",
+            guards=TriggerGuards(cooldown_seconds=0),
+        )
+        scheduler = HeartbeatScheduler(bus=MagicMock(), triggers=[trigger])
+
+        # Patch _should_fire to raise on first call, succeed on second
+        call_count = 0
+        original = scheduler._should_fire
+
+        def flaky_should_fire(t, s, n):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("cron exploded")
+            return False
+
+        scheduler._should_fire = flaky_should_fire
+
+        await scheduler.start()
+        # Give the loop time to tick twice
+        await asyncio.sleep(2.5)
+        await scheduler.stop()
+
+        # Loop survived the error and ticked again
+        assert call_count >= 2
+
+
 class TestSchedulerLifecycle:
     @pytest.mark.asyncio
     async def test_start_creates_task(self):

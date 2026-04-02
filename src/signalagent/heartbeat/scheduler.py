@@ -36,6 +36,10 @@ class HeartbeatScheduler:
     """
 
     def __init__(self, bus: MessageBus, triggers: list[Trigger]) -> None:
+        names = [t.name for t in triggers]
+        if len(names) != len(set(names)):
+            dupes = {n for n in names if names.count(n) > 1}
+            raise ValueError(f"Duplicate trigger names: {dupes}")
         self._bus = bus
         self._triggers = triggers
         self._state: dict[str, TriggerState] = {
@@ -69,8 +73,15 @@ class HeartbeatScheduler:
                 state = self._state[trigger.name]
                 if not state.enabled:
                     continue
-                if self._should_fire(trigger, state, now):
-                    await self._dispatch(trigger, state, now)
+                try:
+                    if self._should_fire(trigger, state, now):
+                        await self._dispatch(trigger, state, now)
+                except Exception:
+                    logger.error(
+                        "Unhandled error evaluating trigger '%s'",
+                        trigger.name,
+                        exc_info=True,
+                    )
 
     def _should_fire(
         self, trigger: Trigger, state: TriggerState, now: datetime
