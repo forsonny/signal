@@ -5,7 +5,11 @@ import logging
 
 from signalagent.agents.base import BaseAgent
 from signalagent.core.models import MicroAgentConfig, Message
-from signalagent.core.protocols import MemoryReaderProtocol, RunnerProtocol
+from signalagent.core.protocols import (
+    MemoryReaderProtocol,
+    RunnerProtocol,
+    WorktreeProxyProtocol,
+)
 from signalagent.core.types import AgentType, MessageType
 from signalagent.prompts.builder import build_system_prompt, DEFAULT_MEMORY_LIMIT
 
@@ -22,12 +26,14 @@ class MicroAgent(BaseAgent):
         runner: RunnerProtocol,
         memory_reader: MemoryReaderProtocol | None = None,
         model: str = "",
+        worktree_proxy: WorktreeProxyProtocol | None = None,
     ) -> None:
         super().__init__(name=config.name, agent_type=AgentType.MICRO)
         self._config = config
         self._runner = runner
         self._memory_reader = memory_reader
         self._model = model
+        self._worktree_proxy = worktree_proxy
 
     @property
     def skill(self) -> str:
@@ -64,14 +70,37 @@ class MicroAgent(BaseAgent):
         else:
             system_prompt = self._build_identity()
 
-        result = await self._runner.run(
-            system_prompt=system_prompt,
-            user_content=message.content,
-        )
+        error: Exception | None = None
+        try:
+            result = await self._runner.run(
+                system_prompt=system_prompt,
+                user_content=message.content,
+            )
+            content = result.content
+        except Exception as exc:
+            error = exc
+            content = f"Task failed: {exc}"
+
+        # Check for worktree changes regardless of success/failure
+        wt_review = ""
+        if self._worktree_proxy is not None:
+            wt_result = self._worktree_proxy.take_result()
+            if wt_result is not None:
+                files_str = "\n".join(f"- {f}" for f in wt_result.changed_files)
+                wt_review = (
+                    f"\n\nChanges ready for review:\n{files_str}\n\n"
+                    f"Run: signal worktree merge {wt_result.id}\n"
+                    f"Or:  signal worktree discard {wt_result.id}"
+                )
+
+        # Error with no worktree state: propagate as before
+        if error is not None and not wt_review:
+            raise error
+
         return Message(
             type=MessageType.RESULT,
             sender=self.name,
             recipient=message.sender,
-            content=result.content,
+            content=content + wt_review,
             parent_id=message.id,
         )

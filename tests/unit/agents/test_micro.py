@@ -1,11 +1,13 @@
 """Unit tests for MicroAgent -- mock runner only."""
 import pytest
-from unittest.mock import AsyncMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from signalagent.agents.micro import MicroAgent
 from signalagent.core.models import MicroAgentConfig, Memory, Message
 from signalagent.core.types import AgentType, MemoryType, MessageType
 from signalagent.runtime.runner import RunnerResult
+from signalagent.worktrees.models import WorktreeResult
 
 from datetime import datetime, timezone
 
@@ -143,3 +145,128 @@ class TestMicroAgentMemoryIntegration:
         assert result.content == "Review complete."
         system_prompt = mock_runner.run.call_args.kwargs["system_prompt"]
         assert "## Context" not in system_prompt
+
+
+class _FakeWorktreeProxy:
+    """Minimal fake satisfying WorktreeProxyProtocol."""
+
+    def __init__(self, result: WorktreeResult | None = None) -> None:
+        self._result = result
+
+    def take_result(self) -> WorktreeResult | None:
+        r = self._result
+        self._result = None
+        return r
+
+
+class TestMicroAgentWorktree:
+    @pytest.mark.asyncio
+    async def test_appends_review_instructions(self) -> None:
+        wt_result = WorktreeResult(
+            id="wt_abc12345",
+            worktree_path=Path("/tmp/wt"),
+            workspace_root=Path("/project"),
+            changed_files=["src/main.py", "src/utils.py"],
+            diff="diff output",
+            agent_name="coder",
+            is_git=True,
+        )
+        proxy = _FakeWorktreeProxy(result=wt_result)
+        runner = AsyncMock()
+        runner.run.return_value = MagicMock(content="Task complete.")
+
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="coder", skill="coding"),
+            runner=runner,
+            worktree_proxy=proxy,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="coder", content="fix the bug",
+        )
+        response = await agent._handle(msg)
+        assert "signal worktree merge wt_abc12345" in response.content
+        assert "signal worktree discard wt_abc12345" in response.content
+        assert "src/main.py" in response.content
+
+    @pytest.mark.asyncio
+    async def test_no_review_without_writes(self) -> None:
+        proxy = _FakeWorktreeProxy(result=None)
+        runner = AsyncMock()
+        runner.run.return_value = MagicMock(content="Analysis complete.")
+
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="analyzer", skill="analysis"),
+            runner=runner,
+            worktree_proxy=proxy,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="analyzer", content="analyze this",
+        )
+        response = await agent._handle(msg)
+        assert "worktree" not in response.content.lower()
+        assert response.content == "Analysis complete."
+
+    @pytest.mark.asyncio
+    async def test_no_review_without_proxy(self) -> None:
+        runner = AsyncMock()
+        runner.run.return_value = MagicMock(content="Done.")
+
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="basic", skill="general"),
+            runner=runner,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="basic", content="do something",
+        )
+        response = await agent._handle(msg)
+        assert response.content == "Done."
+
+    @pytest.mark.asyncio
+    async def test_preserves_worktree_on_runner_error(self) -> None:
+        wt_result = WorktreeResult(
+            id="wt_err12345",
+            worktree_path=Path("/tmp/wt"),
+            workspace_root=Path("/project"),
+            changed_files=["partial.py"],
+            diff="partial diff",
+            agent_name="coder",
+            is_git=True,
+        )
+        proxy = _FakeWorktreeProxy(result=wt_result)
+        runner = AsyncMock()
+        runner.run.side_effect = RuntimeError("AI layer failed")
+
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="coder", skill="coding"),
+            runner=runner,
+            worktree_proxy=proxy,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="coder", content="fix it",
+        )
+        response = await agent._handle(msg)
+        assert "signal worktree merge wt_err12345" in response.content
+        assert "partial.py" in response.content
+        assert "failed" in response.content.lower()
+
+    @pytest.mark.asyncio
+    async def test_reraises_without_worktree_state(self) -> None:
+        proxy = _FakeWorktreeProxy(result=None)
+        runner = AsyncMock()
+        runner.run.side_effect = RuntimeError("AI layer failed")
+
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="coder", skill="coding"),
+            runner=runner,
+            worktree_proxy=proxy,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="coder", content="fix it",
+        )
+        with pytest.raises(RuntimeError, match="AI layer failed"):
+            await agent._handle(msg)
