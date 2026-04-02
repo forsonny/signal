@@ -418,3 +418,68 @@ class TestProfileWithFork:
         p = Profile(name="test")
         assert isinstance(p.fork, ForkConfig)
         assert p.fork.max_concurrent_branches == 2
+
+
+from signalagent.core.models import MemoryConfig, MemoryKeeperConfig
+
+
+class TestMemoryConfig:
+    def test_defaults(self):
+        cfg = MemoryConfig()
+        assert cfg.decay_half_life_days == 30
+
+    def test_custom_half_life(self):
+        cfg = MemoryConfig(decay_half_life_days=60)
+        assert cfg.decay_half_life_days == 60
+
+    def test_rejects_zero_half_life(self):
+        import pytest
+        with pytest.raises(Exception):
+            MemoryConfig(decay_half_life_days=0)
+
+    def test_rejects_extra_fields(self):
+        import pytest
+        with pytest.raises(Exception):
+            MemoryConfig(unknown="x")
+
+
+class TestMemoryKeeperConfig:
+    def test_defaults(self):
+        cfg = MemoryKeeperConfig()
+        assert cfg.schedule == "0 3 * * 0"
+        assert cfg.staleness_threshold_days == 90
+        assert cfg.min_confidence == 0.1
+        assert cfg.max_candidates_per_run == 20
+
+    def test_custom_values(self):
+        cfg = MemoryKeeperConfig(
+            schedule="0 4 * * 1",
+            staleness_threshold_days=60,
+            min_confidence=0.2,
+            max_candidates_per_run=10,
+        )
+        assert cfg.schedule == "0 4 * * 1"
+        assert cfg.staleness_threshold_days == 60
+
+    def test_rejects_extra_fields(self):
+        import pytest
+        with pytest.raises(Exception):
+            MemoryKeeperConfig(unknown="x")
+
+
+class TestProfileMemoryConfig:
+    def test_profile_has_memory_defaults(self):
+        from signalagent.core.models import Profile
+        p = Profile(name="test")
+        assert p.memory.decay_half_life_days == 30
+
+    def test_profile_memory_keeper_absent_by_default(self):
+        from signalagent.core.models import Profile
+        p = Profile(name="test")
+        assert p.memory_keeper is None
+
+    def test_profile_memory_keeper_present(self):
+        from signalagent.core.models import Profile
+        p = Profile(name="test", memory_keeper=MemoryKeeperConfig())
+        assert p.memory_keeper is not None
+        assert p.memory_keeper.schedule == "0 3 * * 0"

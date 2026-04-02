@@ -62,6 +62,23 @@ class ForkConfig(BaseModel):
     max_concurrent_branches: int = Field(default=2, ge=1)
 
 
+class MemoryConfig(BaseModel):
+    """Memory retrieval configuration -- decay and scoring."""
+    model_config = ConfigDict(extra="forbid")
+
+    decay_half_life_days: int = Field(default=30, ge=1)
+
+
+class MemoryKeeperConfig(BaseModel):
+    """MemoryKeeper agent configuration -- maintenance schedule and thresholds."""
+    model_config = ConfigDict(extra="forbid")
+
+    schedule: str = "0 3 * * 0"
+    staleness_threshold_days: int = Field(default=90, ge=1)
+    min_confidence: float = Field(default=0.1, ge=0.0, le=1.0)
+    max_candidates_per_run: int = Field(default=20, ge=1)
+
+
 class Profile(BaseModel):
     """A Signal profile -- defines what an instance becomes."""
     model_config = ConfigDict(extra="forbid")
@@ -76,6 +93,8 @@ class Profile(BaseModel):
     hooks: HooksConfig = Field(default_factory=HooksConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
     fork: ForkConfig = Field(default_factory=ForkConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    memory_keeper: MemoryKeeperConfig | None = None
 
 
 class Memory(BaseModel):
