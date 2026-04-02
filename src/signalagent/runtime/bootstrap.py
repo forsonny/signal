@@ -13,7 +13,9 @@ from signalagent.hooks.builtins import load_builtin_hook
 from signalagent.hooks.executor import HookExecutor
 from signalagent.hooks.registry import HookRegistry
 from signalagent.memory.engine import MemoryEngine
+from signalagent.memory.keeper import MemoryKeeperAgent
 from signalagent.heartbeat.cron import validate_cron
+from signalagent.heartbeat.models import ClockTrigger
 from signalagent.heartbeat.scheduler import HeartbeatScheduler
 from signalagent.runtime.executor import Executor
 from signalagent.sessions.manager import SessionManager
@@ -37,7 +39,7 @@ async def bootstrap(
     host = AgentHost(bus)
 
     # Memory engine
-    engine = MemoryEngine(instance_dir)
+    engine = MemoryEngine(instance_dir, decay_half_life_days=profile.memory.decay_half_life_days)
     await engine.initialize()
 
     model_name = config.ai.default_model
@@ -182,6 +184,28 @@ async def bootstrap(
             raise ValueError(f"Invalid cron in trigger '{t.name}': {err}")
 
     all_triggers = list(profile.heartbeat.clock_triggers) + list(profile.heartbeat.event_triggers)
+
+    # MemoryKeeper agent -- present-or-not semantics
+    if profile.memory_keeper is not None:
+        keeper_cron = profile.memory_keeper.schedule
+        err = validate_cron(keeper_cron)
+        if err:
+            raise ValueError(f"Invalid cron in memory_keeper.schedule: {err}")
+
+        keeper_agent = MemoryKeeperAgent(
+            ai=ai, engine=engine, config=profile.memory_keeper,
+            model=model_name,
+        )
+        host.register(keeper_agent, talks_to=None)
+
+        keeper_trigger = ClockTrigger(
+            name="memory-keeper-maintenance",
+            cron=keeper_cron,
+            recipient=keeper_agent.name,
+            payload="Run memory maintenance",
+        )
+        all_triggers.append(keeper_trigger)
+
     if all_triggers:
         scheduler = HeartbeatScheduler(bus=bus, triggers=all_triggers)
         await scheduler.start()

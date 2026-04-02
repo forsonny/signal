@@ -33,10 +33,10 @@ class AgentHost:
         return self._agents.get(name)
 
     def list_micro_agents(self) -> list[BaseAgent]:
-        """Return all registered micro-agents. Used by Prime for routing."""
+        """Return all registered specialist agents. Used by Prime for routing."""
         return [
             a for a in self._agents.values()
-            if a.agent_type == AgentType.MICRO
+            if a.agent_type in (AgentType.MICRO, AgentType.MEMORY_KEEPER)
         ]
 
     def unregister(self, name: str) -> None:

@@ -172,6 +172,26 @@ class TestSearch:
         row = await engine._index.get(mem.id)
         assert row["access_count"] == 1
 
+    async def test_search_uses_decay_half_life(self, tmp_path):
+        """Engine passes decay_half_life_days to index.search()."""
+        from datetime import timedelta, datetime, timezone
+        eng = MemoryEngine(tmp_path, decay_half_life_days=7)
+        await eng.initialize()
+
+        now = datetime.now(timezone.utc)
+        mem = eng.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="old memory",
+        )
+        mem.accessed = now - timedelta(days=30)
+        await eng.store(mem)
+
+        results = await eng.search(tags=["test"])
+        assert len(results) == 1
+        assert results[0].id == mem.id
+
+        await eng.close()
+
 
 class TestDelete:
     async def test_delete_removes_file_and_index(self, engine):
