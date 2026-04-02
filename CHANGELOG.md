@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2026-04-02
+
+### Added
+- Decay multiplier: time-based scoring with configurable half-life (replaces additive recency)
+- MemoryConfig on Profile with decay_half_life_days setting
+- MemoryKeeperConfig for optional maintenance agent scheduling
+- MemoryKeeperAgent(BaseAgent): purpose-built agent for memory maintenance
+- MemoryEngine.archive() with changelog entry and index flag
+- MemoryEngine.consolidate() with source supersession and archival
+- MemoryEngine.find_groups() for tag-based candidate grouping (O(n^2) per agent)
+- MemoryEngine.find_stale() for decay-based stale detection
+- MemoryIndex.archive() dedicated single-column update
+- MemoryIndex.list_active() for maintenance queries
+- Memory maintenance prompts module with defensive JSON parsing
+- Bootstrap wires MemoryKeeperAgent with ClockTrigger when config present
+
+### Changed
+- MemoryIndex.search() scoring: tag(0.5) + frequency(0.25) + confidence(0.25) * decay_factor (was: tag(0.4) + recency(0.3) + frequency(0.2) + confidence(0.1))
+- AgentHost.list_micro_agents() includes MEMORY_KEEPER type for Prime routing
+- MemoryEngine constructor accepts decay_half_life_days parameter
+- Blank profile includes memory section with decay_half_life_days: 30
+
 ## [0.11.0] - 2026-04-02
 
 ### Added

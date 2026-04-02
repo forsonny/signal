@@ -15,7 +15,8 @@
 | 7 | Heartbeat Daemon | Complete | In-process async scheduler, clock triggers (cron), file event triggers (git-status polling), safety guards |
 | 8a | Worktrees | Complete | Isolated workspaces, git worktrees, CLI review |
 | 8b | Forks | Complete | Parallel approaches, signal fork CLI, semaphore concurrency |
-| 9 | Memory Advanced | Planned | Anti-corruption, consolidation, decay, embeddings |
+| 9a | Memory Lifecycle | Complete | Decay multiplier, MemoryKeeper agent, anti-corruption, consolidation |
+| 9b | Memory Embeddings | Planned | Semantic search, vector store, embedding-based retrieval |
 | 10 | Safety + Docker + Full CLI | Planned | Policy engine, containerization, all commands |
 
 ---
