@@ -1,0 +1,164 @@
+"""WorktreeManager -- filesystem mechanics for worktree creation and management."""
+from __future__ import annotations
+
+import difflib
+import hashlib
+import logging
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+from signalagent.core.constants import IGNORE_DIRS
+
+logger = logging.getLogger(__name__)
+
+
+class WorktreeManager:
+    """Creates and destroys git worktrees and directory copies.
+
+    Pure filesystem mechanics. No awareness of agents, tasks, or the
+    message bus. Stateless -- state lives in the manifest.
+    """
+
+    def __init__(self, instance_dir: Path, workspace_root: Path) -> None:
+        self._instance_dir = instance_dir
+        self._workspace_root = workspace_root
+        self._worktrees_dir = instance_dir / "data" / "worktrees"
+        self._is_git: bool = (workspace_root / ".git").is_dir()
+
+    @property
+    def is_git(self) -> bool:
+        return self._is_git
+
+    def create(self, name: str) -> Path:
+        """Create a worktree. Returns the worktree path."""
+        self._worktrees_dir.mkdir(parents=True, exist_ok=True)
+        target = self._worktrees_dir / name
+        if self._is_git:
+            return self._create_git(name, target)
+        return self._create_copy(target)
+
+    def diff(self, worktree_path: Path) -> str:
+        """Return unified diff of changes in the worktree."""
+        if self._is_git:
+            return self._diff_git(worktree_path)
+        return self._diff_copy(worktree_path)
+
+    def changed_files(self, worktree_path: Path) -> list[str]:
+        """Return sorted list of changed file paths (relative)."""
+        if self._is_git:
+            return self._changed_files_git(worktree_path)
+        return self._changed_files_copy(worktree_path)
+
+    def merge(self, worktree_path: Path) -> None:
+        """Copy changed files from worktree to workspace."""
+        files = self.changed_files(worktree_path)
+        for rel in files:
+            src = worktree_path / rel
+            dst = self._workspace_root / rel
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+            elif dst.exists():
+                dst.unlink()
+
+    def cleanup(self, worktree_path: Path, branch_name: str | None = None) -> None:
+        """Remove worktree directory and prune git references."""
+        if worktree_path.exists():
+            shutil.rmtree(worktree_path)
+        if self._is_git:
+            subprocess.run(
+                ["git", "worktree", "prune"],
+                cwd=str(self._workspace_root),
+                capture_output=True, text=True,
+            )
+            if branch_name:
+                subprocess.run(
+                    ["git", "branch", "-D", branch_name],
+                    cwd=str(self._workspace_root),
+                    capture_output=True, text=True,
+                )
+
+    # -- Git mode -------------------------------------------------------
+
+    def _create_git(self, name: str, target: Path) -> Path:
+        branch = f"signal/worktree/{name}"
+        subprocess.run(
+            ["git", "worktree", "add", "-b", branch, str(target), "HEAD"],
+            cwd=str(self._workspace_root),
+            capture_output=True, text=True, check=True,
+        )
+        return target
+
+    def _diff_git(self, worktree_path: Path) -> str:
+        result = subprocess.run(
+            ["git", "diff", "HEAD"],
+            cwd=str(worktree_path),
+            capture_output=True, text=True,
+        )
+        return result.stdout
+
+    def _changed_files_git(self, worktree_path: Path) -> list[str]:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD"],
+            cwd=str(worktree_path),
+            capture_output=True, text=True,
+        )
+        return sorted(line for line in result.stdout.splitlines() if line.strip())
+
+    # -- Non-git mode ---------------------------------------------------
+
+    def _create_copy(self, target: Path) -> Path:
+        shutil.copytree(
+            self._workspace_root, target,
+            ignore=shutil.ignore_patterns(*IGNORE_DIRS),
+        )
+        return target
+
+    def _diff_copy(self, worktree_path: Path) -> str:
+        changed = self._changed_files_copy(worktree_path)
+        parts: list[str] = []
+        for rel in changed:
+            ws_file = self._workspace_root / rel
+            wt_file = worktree_path / rel
+            ws_lines = (
+                ws_file.read_text().splitlines(keepends=True) if ws_file.exists() else []
+            )
+            wt_lines = (
+                wt_file.read_text().splitlines(keepends=True) if wt_file.exists() else []
+            )
+            diff_lines = difflib.unified_diff(
+                ws_lines, wt_lines,
+                fromfile=f"a/{rel}", tofile=f"b/{rel}",
+            )
+            parts.extend(diff_lines)
+        return "".join(parts)
+
+    def _changed_files_copy(self, worktree_path: Path) -> list[str]:
+        ws_files = self._walk_files(self._workspace_root)
+        wt_files = self._walk_files(worktree_path)
+        changed: list[str] = []
+        for rel in sorted(ws_files | wt_files):
+            ws_file = self._workspace_root / rel
+            wt_file = worktree_path / rel
+            if not ws_file.exists() or not wt_file.exists():
+                changed.append(rel)
+            elif self._file_hash(ws_file) != self._file_hash(wt_file):
+                changed.append(rel)
+        return changed
+
+    def _walk_files(self, root: Path) -> set[str]:
+        """Walk directory, return relative paths, skip IGNORE_DIRS."""
+        result: set[str] = set()
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+            for f in filenames:
+                full = Path(dirpath) / f
+                result.add(str(full.relative_to(root)))
+            dirnames.sort()
+        return result
+
+    @staticmethod
+    def _file_hash(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
