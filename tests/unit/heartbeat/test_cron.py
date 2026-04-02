@@ -8,7 +8,7 @@ from signalagent.heartbeat.cron import cron_match, validate_cron
 
 class TestCronMatchWildcard:
     def test_all_stars_matches_any_time(self):
-        dt = datetime(2026, 4, 2, 14, 30)  # Wednesday
+        dt = datetime(2026, 4, 2, 14, 30)  # Thursday
         assert cron_match("* * * * *", dt) is True
 
     def test_all_stars_matches_midnight(self):
