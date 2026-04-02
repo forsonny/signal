@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-04-02
+
+### Added
+- SessionManager for JSONL-based conversation persistence (create, load, append, list)
+- Turn and SessionSummary models for session data
+- Message.history field for explicit conversation history transport
+- Conversation history injection in AgenticRunner and PrimeAgent
+- `signal chat` interactive REPL with session create/resume
+- `signal sessions list` command for browsing recent sessions
+- Session ID printed on start and exit for resumability
+
+### Changed
+- RunnerProtocol gains optional history parameter
+- PrimeAgent._handle_directly() accepts conversation history
+- Executor gains optional session_id for multi-turn persistence
+- Bootstrap injects SessionManager into Executor
+
 ## [0.7.0] - 2026-04-01
 
 ### Added

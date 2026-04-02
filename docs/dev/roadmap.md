@@ -11,7 +11,7 @@
 | 4b | Hooks + Sub-Agents | Complete | Hook protocol, HookRegistry, HookExecutor, LogToolCallsHook, bootstrap wiring |
 | 4c | Sub-Agent Spawning | Complete | SpawnSubAgentTool, per-agent executor, ephemeral sub-agent lifecycle |
 | 5 | Prompt Construction | Complete | Token budgeting via LiteLLM, pure-function builder, MemoryReaderProtocol, agent memory injection |
-| 6 | Sessions + Conversation | Planned | Interactive mode, threads, reference resolution |
+| 6 | Sessions + Conversation | Complete | JSONL session persistence, interactive REPL, conversation history injection |
 | 7 | Heartbeat Daemon | Planned | Autonomous triggers (cron, events, conditions) |
 | 8 | Worktrees + Forks | Planned | Isolated workspaces, parallel approaches |
 | 9 | Memory Advanced | Planned | Anti-corruption, consolidation, decay, embeddings |
