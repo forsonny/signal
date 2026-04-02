@@ -19,6 +19,7 @@ def _register_commands() -> None:
     import signalagent.cli.init_cmd  # noqa: F401
     import signalagent.cli.talk_cmd  # noqa: F401
     import signalagent.cli.chat_cmd  # noqa: F401
+    import signalagent.cli.fork_cmd  # noqa: F401
     from signalagent.cli.memory_cmd import memory_app
     from signalagent.cli.sessions_cmd import sessions_app
     from signalagent.cli.worktree_cmd import worktree_app
