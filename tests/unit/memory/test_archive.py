@@ -69,5 +69,15 @@ class TestArchive:
         await engine.archive(mem.id, reason="test")
         assert path.exists()
 
+    async def test_archive_syncs_version_to_index(self, engine):
+        mem = engine.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="test content",
+        )
+        await engine.store(mem)
+        await engine.archive(mem.id, reason="test")
+        row = await engine._index.get(mem.id)
+        assert row["version"] == 2
+
     async def test_archive_nonexistent_is_noop(self, engine):
         await engine.archive("mem_nonexist", reason="test")

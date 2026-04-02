@@ -101,6 +101,7 @@ class MemoryEngine:
         memory.version += 1
         memory.updated = now
         self._storage.write(memory)
+        await self._index.upsert(memory, path)
         await self._index.archive(memory_id)
 
     async def consolidate(
