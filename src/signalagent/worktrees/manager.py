@@ -110,9 +110,19 @@ class WorktreeManager:
     # -- Non-git mode ---------------------------------------------------
 
     def _create_copy(self, target: Path) -> Path:
+        wt_dir = self._worktrees_dir.resolve()
+
+        def _ignore(directory: str, contents: list[str]) -> set[str]:
+            ignored = set(shutil.ignore_patterns(*IGNORE_DIRS)(directory, contents))
+            # Also skip the worktrees directory itself to prevent recursive copies
+            for name in contents:
+                if (Path(directory) / name).resolve() == wt_dir:
+                    ignored.add(name)
+            return ignored
+
         shutil.copytree(
             self._workspace_root, target,
-            ignore=shutil.ignore_patterns(*IGNORE_DIRS),
+            ignore=_ignore,
         )
         return target
 
@@ -149,10 +159,15 @@ class WorktreeManager:
         return changed
 
     def _walk_files(self, root: Path) -> set[str]:
-        """Walk directory, return relative paths, skip IGNORE_DIRS."""
+        """Walk directory, return relative paths, skip IGNORE_DIRS and worktrees dir."""
+        wt_dir = self._worktrees_dir.resolve()
         result: set[str] = set()
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in IGNORE_DIRS
+                and (Path(dirpath) / d).resolve() != wt_dir
+            ]
             for f in filenames:
                 full = Path(dirpath) / f
                 result.add(str(full.relative_to(root)))

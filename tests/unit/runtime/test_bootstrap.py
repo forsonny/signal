@@ -16,6 +16,7 @@ from signalagent.core.models import (
 from signalagent.heartbeat.models import ClockTrigger, TriggerGuards
 from signalagent.core.types import PRIME_AGENT
 from signalagent.runtime.bootstrap import bootstrap
+from signalagent.worktrees.proxy import WorktreeProxy
 
 
 def _make_ai_response(content: str, tool_calls: list | None = None) -> AIResponse:
@@ -382,3 +383,53 @@ class TestHeartbeatBootstrap:
 
         with pytest.raises(ValueError, match="Invalid cron"):
             await bootstrap(tmp_path, config, profile_with_invalid_cron)
+
+
+@pytest.fixture
+def profile_with_worktree_agent():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(
+                name="coder", skill="coding",
+                talks_to=["prime"], plugins=["file_system"],
+            ),
+        ],
+    )
+
+
+class TestWorktreeBootstrap:
+    @pytest.mark.asyncio
+    async def test_micro_agent_gets_worktree_proxy(self, tmp_path, config, profile_with_worktree_agent, monkeypatch):
+        """Micro-agents should receive a WorktreeProxy instance."""
+        mock_ai = AsyncMock()
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_worktree_agent)
+
+        coder = host.get("coder")
+        assert coder._worktree_proxy is not None  # type: ignore[union-attr]
+        assert isinstance(coder._worktree_proxy, WorktreeProxy)  # type: ignore[union-attr]
+
+    @pytest.mark.asyncio
+    async def test_write_through_runner_creates_worktree(self, tmp_path, config, profile_with_worktree_agent, monkeypatch):
+        """Functional test: a file_system write through the full pipeline creates a worktree."""
+        tc = ToolCallRequest(id="call_1", name="file_system",
+                             arguments={"operation": "write", "path": "test.py", "content": "hello"})
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("coder"),
+            _make_ai_response("", tool_calls=[tc]),
+            _make_ai_response("Done"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_worktree_agent)
+        result = await executor.run("write a test file")
+
+        # The write should have gone to a worktree, not the real workspace
+        assert not (tmp_path / "test.py").exists()
+        # The response should include worktree review instructions
+        assert "signal worktree merge" in result.content

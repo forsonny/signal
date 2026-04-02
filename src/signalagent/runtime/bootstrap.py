@@ -21,6 +21,9 @@ from signalagent.runtime.runner import AgenticRunner
 from signalagent.tools.builtins import load_builtin_tool
 from signalagent.tools.builtins.spawn_sub_agent import SpawnSubAgentTool
 from signalagent.tools.registry import ToolRegistry
+from signalagent.worktrees.manager import WorktreeManager
+from signalagent.worktrees.manifest import WorktreeManifest
+from signalagent.worktrees.proxy import WorktreeProxy
 
 
 async def bootstrap(
@@ -65,6 +68,12 @@ async def bootstrap(
 
     # Wrap inner executor with hooks
     tool_executor = HookExecutor(inner=inner_executor, registry=hook_registry)
+
+    # Worktree manager and manifest (shared across agents)
+    worktree_manager = WorktreeManager(
+        instance_dir=instance_dir, workspace_root=instance_dir,
+    )
+    worktree_manifest = WorktreeManifest(instance_dir / "data" / "worktrees")
 
     global_max = config.tools.max_iterations
 
@@ -126,20 +135,39 @@ async def bootstrap(
                 },
             })
 
+            worktree_proxy = WorktreeProxy(
+                inner=agent_executor,
+                hook_registry=hook_registry,
+                worktree_manager=worktree_manager,
+                manifest=worktree_manifest,
+                workspace_root=instance_dir,
+                instance_dir=instance_dir,
+                agent_name=micro_config.name,
+            )
             runner = AgenticRunner(
-                ai=ai, tool_executor=agent_executor,
+                ai=ai, tool_executor=worktree_proxy,
                 tool_schemas=full_schemas, max_iterations=agent_max,
             )
         else:
             # No spawn capability -- use shared executor
+            worktree_proxy = WorktreeProxy(
+                inner=tool_executor,
+                hook_registry=hook_registry,
+                worktree_manager=worktree_manager,
+                manifest=worktree_manifest,
+                workspace_root=instance_dir,
+                instance_dir=instance_dir,
+                agent_name=micro_config.name,
+            )
             runner = AgenticRunner(
-                ai=ai, tool_executor=tool_executor,
+                ai=ai, tool_executor=worktree_proxy,
                 tool_schemas=tool_schemas, max_iterations=agent_max,
             )
 
         agent = MicroAgent(
             config=micro_config, runner=runner,
             memory_reader=engine, model=model_name,
+            worktree_proxy=worktree_proxy,
         )
         talks_to = set(micro_config.talks_to)
         host.register(agent, talks_to=talks_to)
