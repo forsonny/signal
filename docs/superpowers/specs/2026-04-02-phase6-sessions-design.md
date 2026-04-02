@@ -251,10 +251,10 @@ class Executor:
 ```python
 session_manager = SessionManager(instance_dir / "data" / "sessions")
 executor = Executor(bus=bus, session_manager=session_manager)
-return executor, bus, host, session_manager
+return executor, bus, host  # Return type unchanged
 ```
 
-Bootstrap creates SessionManager and returns it alongside the existing tuple. The CLI needs direct access to SessionManager for create/resume logic. Return type becomes `tuple[Executor, MessageBus, AgentHost, SessionManager]`. No `initialize()` call needed -- SessionManager just needs a directory path.
+Bootstrap creates SessionManager internally and injects it into Executor. The return type stays `tuple[Executor, MessageBus, AgentHost]` -- no existing call sites break. CLI commands that need SessionManager create their own instances pointing at the same directory. SessionManager is stateless file I/O, so multiple instances on the same directory is safe.
 
 ### 8. CLI: signal chat (cli/chat_cmd.py)
 
@@ -270,10 +270,11 @@ async def _async_chat(session_id: str | None) -> None:
     instance_dir = find_instance(Path.cwd())
     config = load_config(instance_dir / "config.yaml")
     profile = load_profile(config.profile_name)
-    executor, bus, host, session_manager = await bootstrap(instance_dir, config, profile)
+    executor, bus, host = await bootstrap(instance_dir, config, profile)
 
-    # Create or resume session
-    sm = session_manager
+    # Create or resume session -- CLI creates its own SessionManager
+    # (same directory, stateless file I/O, safe to have multiple instances)
+    sm = SessionManager(instance_dir / "data" / "sessions")
     if session_id and sm.exists(session_id):
         console.print(f"Resuming session {session_id}")
     else:
