@@ -637,6 +637,30 @@ class TestHistoryPassing:
         assert routing_messages[0]["role"] == "user"
 
     @pytest.mark.asyncio
+    async def test_micro_agent_task_has_empty_history(self, host, bus):
+        """When Prime routes to a micro-agent, the task message has empty history."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(
+            return_value=_make_ai_response("code-review"),
+        )
+        _register_prime(host, bus, mock_ai)
+        _register_stub_micro(host, "code-review")
+
+        history = [{"role": "user", "content": "prior context"}]
+        msg = Message(
+            type=MessageType.TASK, sender=USER_SENDER,
+            recipient=PRIME_AGENT, content="review code",
+            history=history,
+        )
+        await bus.send(msg)
+
+        # The StubMicro received a task message -- verify it has no history.
+        # bus.log contains all messages: user->prime, prime->micro, micro->prime, prime->user
+        task_to_micro = [m for m in bus.log if m.recipient == "code-review"]
+        assert len(task_to_micro) == 1
+        assert task_to_micro[0].history == []
+
+    @pytest.mark.asyncio
     async def test_empty_history_works_like_before(self, host, bus):
         """Empty history (default) produces the same behavior as pre-Phase 6."""
         mock_ai = AsyncMock()
@@ -1339,7 +1363,124 @@ git commit -m "feat: add signal sessions list command"
 
 ---
 
-### Task 9: Version Bump + Docs
+### Task 9: CLI Integration Tests
+
+**Files:**
+- Create: `tests/unit/cli/test_chat_cmd.py`
+- Create: `tests/unit/cli/test_sessions_cmd.py`
+- Create: `tests/unit/cli/__init__.py` (if not exists)
+
+- [ ] **Step 1: Write CLI tests**
+
+Create `tests/unit/cli/__init__.py` (empty file if it doesn't exist).
+
+Create `tests/unit/cli/test_sessions_cmd.py`:
+
+```python
+"""Integration tests for signal sessions CLI commands."""
+import pytest
+from datetime import datetime, timezone
+
+from typer.testing import CliRunner
+
+from signalagent.cli.app import app
+from signalagent.core.models import Turn
+from signalagent.sessions.manager import SessionManager
+
+
+runner = CliRunner()
+
+
+class TestSessionsList:
+    def test_sessions_list_no_instance(self, tmp_path, monkeypatch):
+        """signal sessions list exits 1 when no instance found."""
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["sessions", "list"])
+        assert result.exit_code == 1
+
+    def test_sessions_list_empty(self, tmp_path, monkeypatch):
+        """signal sessions list shows message when no sessions exist."""
+        # Create minimal instance structure
+        instance_dir = tmp_path / ".signal"
+        instance_dir.mkdir()
+        (instance_dir / "config.yaml").write_text("profile_name: blank\n")
+        (instance_dir / "data" / "sessions").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(app, ["sessions", "list"])
+        assert result.exit_code == 0
+        assert "No sessions" in result.output
+
+    def test_sessions_list_shows_sessions(self, tmp_path, monkeypatch):
+        """signal sessions list displays session table."""
+        instance_dir = tmp_path / ".signal"
+        instance_dir.mkdir()
+        (instance_dir / "config.yaml").write_text("profile_name: blank\n")
+        sessions_dir = instance_dir / "data" / "sessions"
+        sessions_dir.mkdir(parents=True)
+
+        sm = SessionManager(sessions_dir)
+        sid = sm.create()
+        now = datetime.now(timezone.utc)
+        sm.append(sid, Turn(role="user", content="hello world", timestamp=now))
+        sm.append(sid, Turn(role="assistant", content="hi there", timestamp=now))
+
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["sessions", "list"])
+        assert result.exit_code == 0
+        assert sid in result.output
+        assert "hello world" in result.output
+```
+
+Create `tests/unit/cli/test_chat_cmd.py`:
+
+```python
+"""Integration tests for signal chat CLI command."""
+import pytest
+
+from typer.testing import CliRunner
+
+from signalagent.cli.app import app
+
+
+runner = CliRunner()
+
+
+class TestChatCommand:
+    def test_chat_no_instance_exits_1(self, tmp_path, monkeypatch):
+        """signal chat exits 1 when no instance found."""
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(app, ["chat"])
+        assert result.exit_code == 1
+
+    def test_chat_accepts_session_option(self):
+        """signal chat --session is a recognized option."""
+        # Just verify the CLI accepts the flag (it will fail finding instance)
+        result = runner.invoke(app, ["chat", "--session", "ses_test0001"])
+        # Will fail because no instance, but should NOT fail with "no such option"
+        assert "No such option" not in (result.output or "")
+```
+
+- [ ] **Step 2: Run CLI tests**
+
+Run: `C:/Users/Sonny/AppData/Local/Programs/Python/Python312/python.exe -m pytest tests/unit/cli/ -v`
+Expected: PASS
+
+- [ ] **Step 3: Run full test suite**
+
+Run: `C:/Users/Sonny/AppData/Local/Programs/Python/Python312/python.exe -m pytest tests/ -v`
+Expected: All tests pass
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add tests/unit/cli/
+git commit -m "test: add CLI integration tests for chat and sessions commands"
+```
+
+---
+
+### Task 10: Version Bump + Docs
 
 **Files:**
 - Modify: `src/signalagent/__init__.py`
