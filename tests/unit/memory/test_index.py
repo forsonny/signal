@@ -247,3 +247,50 @@ class TestRemove:
         await index.remove("mem_test1234")
         row = await index.get("mem_test1234")
         assert row is None
+
+
+class TestArchive:
+    async def test_archive_sets_is_archived(self, index):
+        mem = _make_memory()
+        await index.upsert(mem, "/fake/path.md")
+        await index.archive("mem_test1234")
+        row = await index.get("mem_test1234")
+        assert row["is_archived"] == 1
+
+    async def test_archive_hides_from_search(self, index):
+        mem = _make_memory(tags=["python"])
+        await index.upsert(mem, "/fake/path.md")
+        await index.archive("mem_test1234")
+        results = await index.search(tags=["python"])
+        assert len(results) == 0
+
+    async def test_archive_nonexistent_is_noop(self, index):
+        await index.archive("mem_nonexist")  # should not raise
+
+
+class TestListActive:
+    async def test_returns_all_non_archived(self, index):
+        for i in range(3):
+            mem = _make_memory(id=f"mem_{i:08x}")
+            await index.upsert(mem, f"/fake/{i}.md")
+        rows = await index.list_active()
+        assert len(rows) == 3
+
+    async def test_excludes_archived(self, index):
+        mem1 = _make_memory(id="mem_11111111")
+        mem2 = _make_memory(id="mem_22222222")
+        await index.upsert(mem1, "/fake/1.md")
+        await index.upsert(mem2, "/fake/2.md")
+        await index.archive("mem_11111111")
+        rows = await index.list_active()
+        assert len(rows) == 1
+        assert rows[0]["id"] == "mem_22222222"
+
+    async def test_filters_by_agent(self, index):
+        mem1 = _make_memory(id="mem_11111111", agent="prime")
+        mem2 = _make_memory(id="mem_22222222", agent="code-review")
+        await index.upsert(mem1, "/fake/1.md")
+        await index.upsert(mem2, "/fake/2.md")
+        rows = await index.list_active(agent="prime")
+        assert len(rows) == 1
+        assert rows[0]["agent"] == "prime"

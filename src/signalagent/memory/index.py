@@ -201,6 +201,34 @@ class MemoryIndex:
         )
         await self._db.commit()
 
+    async def archive(self, memory_id: str) -> None:
+        """Mark a memory as archived. It will no longer appear in default searches."""
+        assert self._db is not None
+        await self._db.execute(
+            "UPDATE memory_index SET is_archived = 1 WHERE id = ?",
+            (memory_id,),
+        )
+        await self._db.commit()
+
+    async def list_active(self, agent: str | None = None) -> list[dict]:
+        """Return all non-archived index rows, optionally filtered by agent.
+
+        No scoring -- used by maintenance operations (find_groups, find_stale).
+        O(n) on total memory count per agent.
+        """
+        assert self._db is not None
+        conditions = ["is_archived = 0"]
+        params: list[str] = []
+        if agent:
+            conditions.append("agent = ?")
+            params.append(agent)
+        where = " AND ".join(conditions)
+        cursor = await self._db.execute(
+            f"SELECT * FROM memory_index WHERE {where}", params,
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     async def close(self) -> None:
         """Close the database connection."""
         if self._db:
