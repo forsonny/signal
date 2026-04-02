@@ -1899,6 +1899,64 @@ Expected: All PASS. This is the final verification.
 
 ---
 
+### Task 9: Version Bump, CHANGELOG, Roadmap
+
+**Files:**
+- Modify: `VERSION`
+- Modify: `CHANGELOG.md`
+- Modify: `docs/dev/roadmap.md`
+
+- [ ] **Step 1: Bump version**
+
+Update `VERSION` from `0.8.0` to `0.9.0`.
+
+- [ ] **Step 2: Update CHANGELOG.md**
+
+Add a new section at the top (after the header, before `## [0.8.0]`):
+
+```markdown
+## [0.9.0] - 2026-04-02
+
+### Added
+- HeartbeatScheduler: in-process async trigger loop with 1-second tick interval
+- ClockTrigger model with 5-field cron expression matching (ISO day-of-week)
+- FileEventTrigger model with git-status polling and mtime fallback
+- TriggerGuards: cooldown, max_fires, and consecutive error threshold
+- FileChangeDetector: git status --porcelain diffing with silent baseline reset
+- Pure-function cron matcher and validator (heartbeat/cron.py)
+- HEARTBEAT_SENDER virtual sender constant
+- Cron validation at bootstrap (fail-fast on invalid expressions)
+
+### Changed
+- HeartbeatConfig uses typed trigger models (ClockTrigger, FileEventTrigger) instead of list[dict]
+- HeartbeatConfig.condition_triggers removed (deferred -- agents evaluate predicates on clock ticks)
+- MessageBus uses _VIRTUAL_SENDERS set instead of chained sender checks
+- Bootstrap creates and starts HeartbeatScheduler as background asyncio task when triggers are defined
+```
+
+- [ ] **Step 3: Update roadmap**
+
+In `docs/dev/roadmap.md`, change Phase 7 row:
+
+Old:
+```
+| 7 | Heartbeat Daemon | Planned | Autonomous triggers (cron, events, conditions) |
+```
+
+New:
+```
+| 7 | Heartbeat Daemon | Complete | In-process async scheduler, clock triggers (cron), file event triggers (git-status polling), safety guards |
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add VERSION CHANGELOG.md docs/dev/roadmap.md
+git commit -m "chore: bump to 0.9.0, update CHANGELOG and roadmap for Phase 7"
+```
+
+---
+
 ## Summary
 
 | Task | What | Files | Tests |
@@ -1911,3 +1969,4 @@ Expected: All PASS. This is the final verification.
 | 6 | Virtual sender set | `comms/bus.py` | ~3 |
 | 7 | Bootstrap integration | `runtime/bootstrap.py` | ~3 |
 | 8 | Profile update + full suite | `profiles/blank.yaml` | Full regression |
+| 9 | Version bump + docs | `VERSION`, `CHANGELOG.md`, `roadmap.md` | -- |
