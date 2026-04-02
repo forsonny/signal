@@ -66,6 +66,8 @@ class MemoryReaderProtocol(Protocol):
 
 @runtime_checkable
 class WorktreeProxyProtocol(Protocol):
-    """Protocol for worktree proxy -- agents call take_result() after task completion."""
+    """Protocol for worktree proxy -- agents call take_result() after task completion.
+    task_lock() returns an asyncio.Lock for fork branch serialization."""
 
     def take_result(self) -> Any: ...
+    def task_lock(self) -> Any: ...

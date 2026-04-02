@@ -1,4 +1,5 @@
 """Unit tests for MicroAgent -- mock runner only."""
+import asyncio
 import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -152,11 +153,15 @@ class _FakeWorktreeProxy:
 
     def __init__(self, result: WorktreeResult | None = None) -> None:
         self._result = result
+        self._lock = asyncio.Lock()
 
     def take_result(self) -> WorktreeResult | None:
         r = self._result
         self._result = None
         return r
+
+    def task_lock(self) -> asyncio.Lock:
+        return self._lock
 
 
 class TestMicroAgentWorktree:
@@ -270,3 +275,56 @@ class TestMicroAgentWorktree:
         )
         with pytest.raises(RuntimeError, match="AI layer failed"):
             await agent._handle(msg)
+
+
+class TestMicroAgentTaskLock:
+    @pytest.mark.asyncio
+    async def test_handle_acquires_lock_when_proxy_present(self) -> None:
+        lock = asyncio.Lock()
+        acquired_during_run = False
+
+        class TrackingProxy:
+            def __init__(self):
+                self._lock = lock
+
+            def take_result(self):
+                return None
+
+            def task_lock(self):
+                return self._lock
+
+        runner = AsyncMock()
+        async def fake_run(**kwargs):
+            nonlocal acquired_during_run
+            acquired_during_run = lock.locked()
+            return MagicMock(content="Done.")
+        runner.run = fake_run
+
+        proxy = TrackingProxy()
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="coder", skill="coding"),
+            runner=runner,
+            worktree_proxy=proxy,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="coder", content="do something",
+        )
+        await agent._handle(msg)
+        assert acquired_during_run is True
+
+    @pytest.mark.asyncio
+    async def test_handle_works_without_proxy(self) -> None:
+        runner = AsyncMock()
+        runner.run.return_value = MagicMock(content="Done.")
+
+        agent = MicroAgent(
+            config=MicroAgentConfig(name="basic", skill="general"),
+            runner=runner,
+        )
+        msg = Message(
+            type=MessageType.TASK, sender="prime",
+            recipient="basic", content="do something",
+        )
+        response = await agent._handle(msg)
+        assert response.content == "Done."

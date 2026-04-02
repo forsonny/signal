@@ -49,6 +49,12 @@ class MicroAgent(BaseAgent):
         )
 
     async def _handle(self, message: Message) -> Message | None:
+        if self._worktree_proxy is not None:
+            async with self._worktree_proxy.task_lock():
+                return await self._handle_inner(message)
+        return await self._handle_inner(message)
+
+    async def _handle_inner(self, message: Message) -> Message | None:
         memories = []
         if self._memory_reader:
             try:

@@ -1,5 +1,6 @@
 """Tests for core protocol definitions."""
 
+import asyncio
 from unittest.mock import AsyncMock
 
 from signalagent.core.protocols import AILayerProtocol, RunnerProtocol, ToolExecutor, WorktreeProxyProtocol
@@ -50,8 +51,14 @@ class TestRunnerProtocolHistory:
 
 
 class _FakeWorktreeProxy:
+    def __init__(self):
+        self._lock = asyncio.Lock()
+
     def take_result(self):
         return None
+
+    def task_lock(self):
+        return self._lock
 
 
 class TestWorktreeProxyProtocol:
