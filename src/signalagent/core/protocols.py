@@ -62,3 +62,10 @@ class MemoryReaderProtocol(Protocol):
         limit: int = 10,
         touch: bool = False,
     ) -> list[Any]: ...
+
+
+@runtime_checkable
+class WorktreeProxyProtocol(Protocol):
+    """Protocol for worktree proxy -- agents call take_result() after task completion."""
+
+    def take_result(self) -> Any: ...

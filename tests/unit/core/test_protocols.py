@@ -47,3 +47,17 @@ class TestRunnerProtocolHistory:
         from signalagent.runtime.runner import AgenticRunner
         from signalagent.core.protocols import RunnerProtocol
         assert issubclass(AgenticRunner, RunnerProtocol)
+
+
+from signalagent.core.protocols import WorktreeProxyProtocol
+
+
+class _FakeWorktreeProxy:
+    def take_result(self):
+        return None
+
+
+class TestWorktreeProxyProtocol:
+    def test_structural_subtyping(self) -> None:
+        proxy = _FakeWorktreeProxy()
+        assert isinstance(proxy, WorktreeProxyProtocol)

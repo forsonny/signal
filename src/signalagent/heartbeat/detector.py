@@ -10,9 +10,9 @@ import logging
 import subprocess
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from signalagent.core.constants import IGNORE_DIRS
 
-IGNORE_DIRS = {".git", "__pycache__", "node_modules", ".signal", ".venv", "venv"}
+logger = logging.getLogger(__name__)
 
 
 class FileChangeDetector:
