@@ -98,7 +98,7 @@ Worktree exists. The proxy intercepts `file_system` calls and executes them agai
 
 - **Writes**: go to worktree-rooted FileSystemTool.
 - **Reads**: go to worktree-rooted FileSystemTool (agent sees its own changes).
-- **Hook preservation**: The proxy calls `hook_registry.before_tool_call(name, args)` and `hook_registry.after_tool_call(name, args, result)` directly with the agent's original (logical) path arguments. Hooks never see worktree-internal paths.
+- **Hook preservation**: The proxy calls `hook_registry.before_tool_call(name, args)` and `hook_registry.after_tool_call(name, args, result, blocked=False)` directly with the agent's original (logical) path arguments. The `blocked=False` matches the full Phase 4b hook signature (the proxy is executing the tool, not blocking it). Hooks never see worktree-internal paths.
 - **Non-file_system calls**: always pass through the full inner chain regardless of mode.
 
 ### Lazy Creation
@@ -170,7 +170,7 @@ WorktreeRecord:
 - Proxy writes a record with status "pending" on worktree creation.
 - `signal worktree merge` updates status to "merged", cleans up directory.
 - `signal worktree discard` updates status to "discarded", cleans up directory.
-- Status updates are appended as new lines (last record for a given ID wins).
+- Status updates are appended as new lines. Reader builds a `dict[id, WorktreeRecord]` by iterating all lines -- later entries overwrite earlier ones for the same ID. `signal worktree list` filters the resolved dict for `status == "pending"`.
 - Reader skips malformed lines with a logged warning (crash tolerance).
 
 ## MicroAgent Integration
@@ -279,7 +279,7 @@ agent = MicroAgent(config=..., runner=runner, worktree_proxy=worktree_proxy, ...
 11. ISOLATED mode: `file_system` reads go to worktree (agent sees its own changes).
 12. Transition: first `file_system` write triggers lazy worktree creation via WorktreeManager.
 13. Non-`file_system` calls always pass through regardless of mode.
-14. Hooks fire in both modes -- ISOLATED mode calls `HookRegistry.before_tool_call` / `after_tool_call` directly with original (logical) path arguments.
+14. Hooks fire in both modes -- ISOLATED mode calls `HookRegistry.before_tool_call` / `after_tool_call(name, args, result, blocked=False)` directly with original (logical) path arguments.
 15. `take_result()` returns `WorktreeResult` if writes occurred, `None` otherwise, and resets state to PASSTHROUGH.
 
 ### WorktreeResult Model
