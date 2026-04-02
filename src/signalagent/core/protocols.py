@@ -31,6 +31,7 @@ class RunnerProtocol(Protocol):
         self,
         system_prompt: str,
         user_content: str,
+        history: list[dict] | None = None,
     ) -> Any: ...
 
 

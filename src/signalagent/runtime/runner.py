@@ -33,11 +33,18 @@ class AgenticRunner:
         self._tool_schemas = tool_schemas
         self._max_iterations = max_iterations
 
-    async def run(self, system_prompt: str, user_content: str) -> RunnerResult:
+    async def run(
+        self,
+        system_prompt: str,
+        user_content: str,
+        history: list[dict] | None = None,
+    ) -> RunnerResult:
         messages: list[dict] = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
         ]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": user_content})
         tools = self._tool_schemas if self._tool_schemas else None
         iterations = 0
         total_tool_calls = 0

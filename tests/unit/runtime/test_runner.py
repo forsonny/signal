@@ -169,3 +169,42 @@ class TestRunnerMessageFormat:
         assert len(tool_msgs) == 1
         assert tool_msgs[0]["tool_call_id"] == "call_1"
         assert tool_msgs[0]["content"] == "hi"
+
+
+class TestRunnerHistory:
+    @pytest.mark.asyncio
+    async def test_history_injected_between_system_and_user(self):
+        """History messages appear between system prompt and user message."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_text_response("done"))
+        mock_executor = AsyncMock()
+        runner = AgenticRunner(ai=mock_ai, tool_executor=mock_executor,
+                               tool_schemas=[], max_iterations=10)
+        history = [
+            {"role": "user", "content": "prior question"},
+            {"role": "assistant", "content": "prior answer"},
+        ]
+        await runner.run(system_prompt="You are helpful.", user_content="new question",
+                         history=history)
+        messages = mock_ai.complete.call_args.kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert messages[1]["content"] == "prior question"
+        assert messages[2]["role"] == "assistant"
+        assert messages[2]["content"] == "prior answer"
+        assert messages[3]["role"] == "user"
+        assert messages[3]["content"] == "new question"
+
+    @pytest.mark.asyncio
+    async def test_none_history_behaves_like_no_history(self):
+        """history=None produces same messages as no history."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_text_response("done"))
+        mock_executor = AsyncMock()
+        runner = AgenticRunner(ai=mock_ai, tool_executor=mock_executor,
+                               tool_schemas=[], max_iterations=10)
+        await runner.run(system_prompt="sys", user_content="hi", history=None)
+        messages = mock_ai.complete.call_args.kwargs["messages"]
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"

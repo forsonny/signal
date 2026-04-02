@@ -39,3 +39,11 @@ class TestMemoryReaderProtocol:
         # issubclass used here because MemoryEngine requires a Path to construct;
         # runtime_checkable validates method presence on the class itself.
         assert issubclass(MemoryEngine, MemoryReaderProtocol)
+
+
+class TestRunnerProtocolHistory:
+    def test_runner_with_history_satisfies_protocol(self):
+        """AgenticRunner with history parameter satisfies RunnerProtocol."""
+        from signalagent.runtime.runner import AgenticRunner
+        from signalagent.core.protocols import RunnerProtocol
+        assert issubclass(AgenticRunner, RunnerProtocol)
