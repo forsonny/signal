@@ -620,13 +620,13 @@ class TestMerge:
         workspace.mkdir()
         (workspace / "to_delete.py").write_text("will be removed")
 
-        worktree = tmp_path / "worktree"
-        worktree.mkdir()
-        # to_delete.py does NOT exist in worktree
-
+        # Use create() so the worktree starts as a proper copy of workspace
         mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
-        mgr._is_git = False
-        mgr.merge(worktree)
+        target = mgr.create("del_test")
+        # Agent deletes the file in the worktree
+        (target / "to_delete.py").unlink()
+
+        mgr.merge(target)
         assert not (workspace / "to_delete.py").exists()
 
     def test_creates_parent_dirs(self, tmp_path: Path) -> None:
@@ -1678,41 +1678,67 @@ git commit -m "feat: integrate WorktreeProxyProtocol into MicroAgent"
 
 - [ ] **Step 1: Write tests for worktree bootstrap wiring**
 
-Append to `tests/unit/runtime/test_bootstrap.py`:
+Append to `tests/unit/runtime/test_bootstrap.py`.
+
+First, add the import at the top of the file alongside the existing imports:
 
 ```python
 from signalagent.worktrees.proxy import WorktreeProxy
+```
+
+Then add a new fixture and test class:
+
+```python
+@pytest.fixture
+def profile_with_worktree_agent():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(
+                name="coder", skill="coding",
+                talks_to=["prime"], plugins=["file_system"],
+            ),
+        ],
+    )
 
 
 class TestWorktreeBootstrap:
     @pytest.mark.asyncio
-    async def test_micro_agent_gets_worktree_proxy(self, tmp_path: Path) -> None:
+    async def test_micro_agent_gets_worktree_proxy(self, tmp_path, config, profile_with_worktree_agent, monkeypatch):
         """Micro-agents should receive a WorktreeProxy instance."""
-        config, profile = _make_config_and_profile(tmp_path)
-        profile.micro_agents = [
-            MicroAgentConfig(name="coder", skill="coding"),
-        ]
-        executor, bus, host = await bootstrap(tmp_path, config, profile)
-        agents = host.list_micro_agents()
-        assert len(agents) == 1
-        agent = agents[0]
-        assert agent._worktree_proxy is not None
-        assert isinstance(agent._worktree_proxy, WorktreeProxy)
+        mock_ai = AsyncMock()
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_worktree_agent)
+
+        # host.get() returns BaseAgent; _worktree_proxy is on MicroAgent. type: ignore as above.
+        coder = host.get("coder")
+        assert coder._worktree_proxy is not None  # type: ignore[union-attr]
+        assert isinstance(coder._worktree_proxy, WorktreeProxy)  # type: ignore[union-attr]
 
     @pytest.mark.asyncio
-    async def test_proxy_wraps_executor_chain(self, tmp_path: Path) -> None:
-        """The WorktreeProxy should be the outermost tool executor."""
-        config, profile = _make_config_and_profile(tmp_path)
-        profile.micro_agents = [
-            MicroAgentConfig(name="coder", skill="coding"),
-        ]
-        executor, bus, host = await bootstrap(tmp_path, config, profile)
-        agent = host.list_micro_agents()[0]
-        # The runner's tool_executor should be the WorktreeProxy
-        assert isinstance(agent._runner._tool_executor, WorktreeProxy)
-```
+    async def test_write_through_runner_creates_worktree(self, tmp_path, config, profile_with_worktree_agent, monkeypatch):
+        """Functional test: a file_system write through the full pipeline creates a worktree."""
+        tc = ToolCallRequest(id="call_1", name="file_system",
+                             arguments={"operation": "write", "path": "test.py", "content": "hello"})
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("coder"),
+            _make_ai_response("", tool_calls=[tc]),
+            _make_ai_response("Done"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
 
-Note: `_make_config_and_profile` is a helper that should already exist in the test file. If not, create a minimal version that builds a `SignalConfig` and `Profile` with defaults.
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_worktree_agent)
+        result = await executor.run("write a test file")
+
+        # The write should have gone to a worktree, not the real workspace
+        assert not (tmp_path / "test.py").exists()
+        # The response should include worktree review instructions
+        assert "signal worktree merge" in result.content
+```
 
 - [ ] **Step 2: Run new tests to verify they fail**
 
