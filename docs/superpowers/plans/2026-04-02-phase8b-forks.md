@@ -1026,6 +1026,10 @@ async def _async_fork(
     executor, _bus, _host = await bootstrap(instance_dir, config, profile)
 
     max_concurrent = concurrency if concurrency > 0 else profile.fork.max_concurrent_branches
+
+    # Separate instances from bootstrap's -- works because both
+    # WorktreeManifest and WorktreeManager are stateless file I/O
+    # against the same paths (no in-memory cache, no buffered writes).
     manifest = WorktreeManifest(instance_dir / "data" / "worktrees")
     manager = WorktreeManager(instance_dir=instance_dir, workspace_root=instance_dir)
 
