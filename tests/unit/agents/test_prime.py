@@ -367,3 +367,96 @@ class TestMemoryIntegration:
         call_messages = mock_ai.complete.call_args.kwargs["messages"]
         system_content = call_messages[0]["content"]
         assert "## Context" not in system_content
+
+
+class TestHistoryPassing:
+    @pytest.mark.asyncio
+    async def test_handle_directly_includes_history_in_ai_call(self, host, bus):
+        """History from message is passed to the AI call."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("response"))
+        _register_prime(host, bus, mock_ai)
+
+        history = [
+            {"role": "user", "content": "prior question"},
+            {"role": "assistant", "content": "prior answer"},
+        ]
+        msg = Message(
+            type=MessageType.TASK, sender=USER_SENDER,
+            recipient=PRIME_AGENT, content="new question",
+            history=history,
+        )
+        await bus.send(msg)
+
+        call_messages = mock_ai.complete.call_args.kwargs["messages"]
+        # system + 2 history entries + user = 4 messages
+        assert len(call_messages) == 4
+        assert call_messages[0]["role"] == "system"
+        assert call_messages[1]["role"] == "user"
+        assert call_messages[1]["content"] == "prior question"
+        assert call_messages[2]["role"] == "assistant"
+        assert call_messages[3]["role"] == "user"
+        assert call_messages[3]["content"] == "new question"
+
+    @pytest.mark.asyncio
+    async def test_routing_does_not_receive_history(self, host, bus):
+        """When routing to micro-agent, the routing prompt doesn't include history."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(
+            return_value=_make_ai_response("code-review"),
+        )
+        _register_prime(host, bus, mock_ai)
+        _register_stub_micro(host, "code-review")
+
+        history = [{"role": "user", "content": "prior"}]
+        msg = Message(
+            type=MessageType.TASK, sender=USER_SENDER,
+            recipient=PRIME_AGENT, content="review code",
+            history=history,
+        )
+        result = await bus.send(msg)
+
+        routing_call = mock_ai.complete.call_args_list[0]
+        routing_messages = routing_call.kwargs["messages"]
+        assert len(routing_messages) == 1
+        assert routing_messages[0]["role"] == "user"
+
+    @pytest.mark.asyncio
+    async def test_micro_agent_task_has_empty_history(self, host, bus):
+        """When Prime routes to a micro-agent, the task message has empty history."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(
+            return_value=_make_ai_response("code-review"),
+        )
+        _register_prime(host, bus, mock_ai)
+        _register_stub_micro(host, "code-review")
+
+        history = [{"role": "user", "content": "prior context"}]
+        msg = Message(
+            type=MessageType.TASK, sender=USER_SENDER,
+            recipient=PRIME_AGENT, content="review code",
+            history=history,
+        )
+        await bus.send(msg)
+
+        # The StubMicro received a task message -- verify it has no history.
+        # bus.log contains all messages: user->prime, prime->micro, micro->prime, prime->user
+        task_to_micro = [m for m in bus.log if m.recipient == "code-review"]
+        assert len(task_to_micro) == 1
+        assert task_to_micro[0].history == []
+
+    @pytest.mark.asyncio
+    async def test_empty_history_works_like_before(self, host, bus):
+        """Empty history (default) produces the same behavior as pre-Phase 6."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("response"))
+        _register_prime(host, bus, mock_ai)
+
+        msg = Message(
+            type=MessageType.TASK, sender=USER_SENDER,
+            recipient=PRIME_AGENT, content="hello",
+        )
+        await bus.send(msg)
+
+        call_messages = mock_ai.complete.call_args.kwargs["messages"]
+        assert len(call_messages) == 2  # system + user only

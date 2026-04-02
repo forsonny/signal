@@ -48,14 +48,16 @@ class PrimeAgent(BaseAgent):
 
     async def _handle(self, message: Message) -> Message | None:
         """Route to micro-agent or handle directly."""
+        history = message.history or None
         micro_agents = self._host.list_micro_agents()
 
         if not micro_agents:
-            content = await self._handle_directly(message.content)
+            content = await self._handle_directly(message.content, history)
         else:
             target = await self._route(message.content, micro_agents)
             if target is not None:
-                # Dispatch to micro-agent via bus
+                # Dispatch to micro-agent via bus -- no history forwarded.
+                # Micro-agents are stateless task executors.
                 task_msg = Message(
                     type=MessageType.TASK,
                     sender=PRIME_AGENT,
@@ -66,7 +68,7 @@ class PrimeAgent(BaseAgent):
                 micro_response = await self._bus.send(task_msg)
                 content = micro_response.content if micro_response else ""
             else:
-                content = await self._handle_directly(message.content)
+                content = await self._handle_directly(message.content, history)
 
         return Message(
             type=MessageType.RESULT,
@@ -120,7 +122,9 @@ class PrimeAgent(BaseAgent):
         name_map = {a.name.lower(): a.name for a in micro_agents}
         return name_map.get(choice)
 
-    async def _handle_directly(self, user_content: str) -> str:
+    async def _handle_directly(
+        self, user_content: str, history: list[dict] | None = None,
+    ) -> str:
         """Execute using Prime's own identity prompt. Fallback path."""
         memories = []
         if self._memory_reader:
@@ -143,10 +147,10 @@ class PrimeAgent(BaseAgent):
         else:
             system_prompt = self._identity
 
-        response = await self._ai.complete(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-        )
+        messages = [{"role": "system", "content": system_prompt}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": user_content})
+
+        response = await self._ai.complete(messages=messages)
         return response.content
