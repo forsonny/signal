@@ -13,6 +13,8 @@ from signalagent.hooks.builtins import load_builtin_hook
 from signalagent.hooks.executor import HookExecutor
 from signalagent.hooks.registry import HookRegistry
 from signalagent.memory.engine import MemoryEngine
+from signalagent.heartbeat.cron import validate_cron
+from signalagent.heartbeat.scheduler import HeartbeatScheduler
 from signalagent.runtime.executor import Executor
 from signalagent.sessions.manager import SessionManager
 from signalagent.runtime.runner import AgenticRunner
@@ -144,6 +146,17 @@ async def bootstrap(
 
     # Session manager
     session_manager = SessionManager(instance_dir / "data" / "sessions")
+
+    # Heartbeat scheduler -- validate and start after agents are registered
+    for t in profile.heartbeat.clock_triggers:
+        err = validate_cron(t.cron)
+        if err:
+            raise ValueError(f"Invalid cron in trigger '{t.name}': {err}")
+
+    all_triggers = list(profile.heartbeat.clock_triggers) + list(profile.heartbeat.event_triggers)
+    if all_triggers:
+        scheduler = HeartbeatScheduler(bus=bus, triggers=all_triggers)
+        await scheduler.start()
 
     executor = Executor(bus=bus, session_manager=session_manager)
     return executor, bus, host

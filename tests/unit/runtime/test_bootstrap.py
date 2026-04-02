@@ -1,6 +1,6 @@
 """Unit tests for bootstrap -- all real objects, only AILayer mocked."""
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from signalagent.ai.layer import AIResponse
 from signalagent.core.config import SignalConfig
@@ -10,8 +10,10 @@ from signalagent.core.models import (
     MicroAgentConfig,
     PluginsConfig,
     HooksConfig,
+    HeartbeatConfig,
     ToolCallRequest,
 )
+from signalagent.heartbeat.models import ClockTrigger, TriggerGuards
 from signalagent.core.types import PRIME_AGENT
 from signalagent.runtime.bootstrap import bootstrap
 
@@ -308,3 +310,75 @@ class TestSessionManagerInjection:
         await bootstrap(tmp_path, config, profile_no_micros)
 
         assert (tmp_path / "data" / "sessions").is_dir()
+
+
+@pytest.fixture
+def profile_with_heartbeat():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        heartbeat=HeartbeatConfig(
+            clock_triggers=[
+                ClockTrigger(
+                    name="test-trigger",
+                    cron="*/5 * * * *",
+                    recipient="prime",
+                    payload="tick",
+                    guards=TriggerGuards(cooldown_seconds=60),
+                ),
+            ],
+        ),
+    )
+
+@pytest.fixture
+def profile_with_invalid_cron():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        heartbeat=HeartbeatConfig(
+            clock_triggers=[
+                ClockTrigger(name="bad", cron="bad cron", recipient="prime"),
+            ],
+        ),
+    )
+
+
+class TestHeartbeatBootstrap:
+    @pytest.mark.asyncio
+    async def test_scheduler_not_created_without_triggers(self, tmp_path, config, profile_no_micros, monkeypatch):
+        """No triggers in profile means no scheduler created."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_no_micros)
+        # Bootstrap completes without error -- scheduler not created
+        assert executor is not None
+
+    @pytest.mark.asyncio
+    async def test_scheduler_created_with_triggers(self, tmp_path, config, profile_with_heartbeat, monkeypatch):
+        """Clock triggers in profile cause scheduler to be created and started."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        # Patch HeartbeatScheduler to verify it's created
+        mock_scheduler_cls = MagicMock()
+        mock_scheduler_instance = MagicMock()
+        mock_scheduler_instance.start = AsyncMock()
+        mock_scheduler_cls.return_value = mock_scheduler_instance
+        monkeypatch.setattr("signalagent.runtime.bootstrap.HeartbeatScheduler", mock_scheduler_cls)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_heartbeat)
+
+        mock_scheduler_cls.assert_called_once()
+        mock_scheduler_instance.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invalid_cron_fails_at_bootstrap(self, tmp_path, config, profile_with_invalid_cron, monkeypatch):
+        """Invalid cron expression raises ValueError at bootstrap."""
+        mock_ai = AsyncMock()
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        with pytest.raises(ValueError, match="Invalid cron"):
+            await bootstrap(tmp_path, config, profile_with_invalid_cron)
