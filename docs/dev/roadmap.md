@@ -12,7 +12,7 @@
 | 4c | Sub-Agent Spawning | Complete | SpawnSubAgentTool, per-agent executor, ephemeral sub-agent lifecycle |
 | 5 | Prompt Construction | Complete | Token budgeting via LiteLLM, pure-function builder, MemoryReaderProtocol, agent memory injection |
 | 6 | Sessions + Conversation | Complete | JSONL session persistence, interactive REPL, conversation history injection |
-| 7 | Heartbeat Daemon | Planned | Autonomous triggers (cron, events, conditions) |
+| 7 | Heartbeat Daemon | Complete | In-process async scheduler, clock triggers (cron), file event triggers (git-status polling), safety guards |
 | 8 | Worktrees + Forks | Planned | Isolated workspaces, parallel approaches |
 | 9 | Memory Advanced | Planned | Anti-corruption, consolidation, decay, embeddings |
 | 10 | Safety + Docker + Full CLI | Planned | Policy engine, containerization, all commands |

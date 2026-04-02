@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-04-02
+
+### Added
+- HeartbeatScheduler: in-process async trigger loop with 1-second tick interval
+- ClockTrigger model with 5-field cron expression matching (ISO day-of-week)
+- FileEventTrigger model with git-status polling and mtime fallback
+- TriggerGuards: cooldown, max_fires, and consecutive error threshold
+- FileChangeDetector: git status --porcelain diffing with silent baseline reset
+- Pure-function cron matcher and validator (heartbeat/cron.py)
+- HEARTBEAT_SENDER virtual sender constant
+- Cron validation at bootstrap (fail-fast on invalid expressions)
+
+### Changed
+- HeartbeatConfig uses typed trigger models (ClockTrigger, FileEventTrigger) instead of list[dict]
+- HeartbeatConfig.condition_triggers removed (deferred -- agents evaluate predicates on clock ticks)
+- MessageBus uses _VIRTUAL_SENDERS set instead of chained sender checks
+- Bootstrap creates and starts HeartbeatScheduler as background asyncio task when triggers are defined
+
 ## [0.8.0] - 2026-04-02
 
 ### Added
