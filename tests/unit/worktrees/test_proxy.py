@@ -1,6 +1,7 @@
 """Tests for WorktreeProxy."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -286,3 +287,17 @@ class TestTakeResult:
         assert result.is_git is True
         assert result.agent_name == "coder"
         assert result.id.startswith("wt_")
+
+
+class TestTaskLock:
+    def test_returns_asyncio_lock(self, proxy: WorktreeProxy) -> None:
+        lock = proxy.task_lock()
+        assert isinstance(lock, asyncio.Lock)
+
+    def test_returns_same_instance(self, proxy: WorktreeProxy) -> None:
+        assert proxy.task_lock() is proxy.task_lock()
+
+    @pytest.mark.asyncio
+    async def test_lock_is_async_context_manager(self, proxy: WorktreeProxy) -> None:
+        async with proxy.task_lock():
+            pass  # should not raise

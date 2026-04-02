@@ -1,6 +1,7 @@
 """WorktreeProxy -- per-agent tool executor wrapper for worktree isolation."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timezone
@@ -52,6 +53,15 @@ class WorktreeProxy:
         self._worktree_tool: FileSystemTool | None = None
         self._worktree_id: str | None = None
         self._is_isolated: bool = False
+
+        # Task-scoping lock for fork serialization (Phase 8b).
+        # Fork branches may route to the same agent concurrently.
+        # The proxy's per-task state machine (PASSTHROUGH -> ISOLATED ->
+        # take_result) must not interleave. MicroAgent acquires this lock
+        # around _handle() to serialize concurrent task execution per-proxy.
+        # For non-fork usage (signal talk / signal chat), the lock is
+        # acquired immediately with no contention -- zero overhead.
+        self._lock = asyncio.Lock()
 
     async def __call__(self, tool_name: str, arguments: dict) -> ToolResult:
         # Non-file_system always passes through
@@ -138,6 +148,10 @@ class WorktreeProxy:
             return await self._worktree_tool.execute(**arguments)
         except Exception as e:
             return ToolResult(output="", error=str(e))
+
+    def task_lock(self) -> asyncio.Lock:
+        """Return the task-scoping lock for concurrent branch serialization."""
+        return self._lock
 
     def take_result(self) -> WorktreeResult | None:
         """Return WorktreeResult if writes occurred, None otherwise.
