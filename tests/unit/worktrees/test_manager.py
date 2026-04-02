@@ -145,3 +145,102 @@ class TestCleanup:
         missing = tmp_path / "nonexistent"
         mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=tmp_path)
         mgr.cleanup(missing)  # should not raise
+
+
+class TestNonGitCreate:
+    def test_copies_workspace(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "src").mkdir()
+        (workspace / "src" / "main.py").write_text("hello")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        assert mgr.is_git is False
+        target = mgr.create("test_wt")
+        assert target.exists()
+        assert (target / "src" / "main.py").read_text() == "hello"
+
+    def test_ignores_dirs(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "__pycache__").mkdir()
+        (workspace / "__pycache__" / "cache.pyc").write_bytes(b"bytes")
+        (workspace / "src").mkdir()
+        (workspace / "src" / "main.py").write_text("code")
+        (workspace / "node_modules").mkdir()
+        (workspace / "node_modules" / "big.js").write_text("js")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        assert (target / "src" / "main.py").exists()
+        assert not (target / "__pycache__").exists()
+        assert not (target / "node_modules").exists()
+
+
+class TestNonGitChangedFiles:
+    def test_detects_modified_file(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "file.py").write_text("original")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        (target / "file.py").write_text("modified")
+        changed = mgr.changed_files(target)
+        assert "file.py" in changed
+
+    def test_detects_new_file(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "old.py").write_text("content")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        (target / "new.py").write_text("added")
+        changed = mgr.changed_files(target)
+        assert "new.py" in changed
+
+    def test_detects_deleted_file(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "gone.py").write_text("will be deleted")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        (target / "gone.py").unlink()
+        changed = mgr.changed_files(target)
+        assert "gone.py" in changed
+
+    def test_unchanged_returns_empty(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "same.py").write_text("untouched")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        assert mgr.changed_files(target) == []
+
+
+class TestNonGitDiff:
+    def test_produces_unified_diff(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "file.py").write_text("old line\n")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        (target / "file.py").write_text("new line\n")
+        diff = mgr.diff(target)
+        assert "--- a/file.py" in diff
+        assert "+++ b/file.py" in diff
+        assert "-old line" in diff
+        assert "+new line" in diff
+
+    def test_empty_diff_when_unchanged(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "same.py").write_text("untouched\n")
+
+        mgr = WorktreeManager(instance_dir=tmp_path, workspace_root=workspace)
+        target = mgr.create("test_wt")
+        assert mgr.diff(target) == ""
