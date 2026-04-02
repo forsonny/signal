@@ -109,8 +109,24 @@ class MemoryIndex:
         memory_type: str | None = None,
         limit: int = 10,
         include_archived: bool = False,
+        decay_half_life_days: int = 30,
     ) -> list[dict]:
-        """Tag-match + recency-scored search. Returns ranked results."""
+        """Tag-match + decay-scored search. Returns ranked results.
+
+        Scoring formula:
+            base_score = tag * 0.5 + frequency * 0.25 + confidence * 0.25
+            decay_factor = 1 / (1 + days_since / decay_half_life_days)
+            effective_score = base_score * decay_factor
+
+        Args:
+            tags: Tags to match against. Memories must share at least one tag.
+            agent: Filter to a specific agent name.
+            memory_type: Filter to a specific memory type string.
+            limit: Maximum number of results to return.
+            include_archived: If True, include archived memories.
+            decay_half_life_days: Days after which relevance is halved.
+                Shorter values penalise stale memories more aggressively.
+        """
         assert self._db is not None
 
         conditions: list[str] = []
@@ -153,22 +169,23 @@ class MemoryIndex:
             else:
                 tag_score = 0.0
 
-            accessed = datetime.fromisoformat(row["accessed_at"])
-            if accessed.tzinfo is None:
-                accessed = accessed.replace(tzinfo=timezone.utc)
-            days_since = max((now - accessed).total_seconds() / 86400, 0)
-            recency_score = 1.0 / (1.0 + days_since / 30.0)
-
             frequency_score = min(
                 math.log(row["access_count"] + 1) / 10.0, 1.0
             )
 
-            row["_score"] = (
-                tag_score * 0.4
-                + recency_score * 0.3
-                + frequency_score * 0.2
-                + row["confidence"] * 0.1
+            base_score = (
+                tag_score * 0.5
+                + frequency_score * 0.25
+                + row["confidence"] * 0.25
             )
+
+            accessed = datetime.fromisoformat(row["accessed_at"])
+            if accessed.tzinfo is None:
+                accessed = accessed.replace(tzinfo=timezone.utc)
+            days_since = max((now - accessed).total_seconds() / 86400, 0)
+            decay_factor = 1.0 / (1.0 + days_since / decay_half_life_days)
+
+            row["_score"] = base_score * decay_factor
 
         results.sort(key=lambda r: r["_score"], reverse=True)
         return results[:limit]

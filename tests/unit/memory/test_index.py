@@ -149,7 +149,7 @@ class TestSearch:
         results = await index.search(include_archived=True)
         assert len(results) == 1
 
-    async def test_search_scores_by_recency(self, index):
+    async def test_search_scores_by_decay(self, index):
         now = datetime.now(timezone.utc)
         old = now - timedelta(days=60)
         mem_recent = _make_memory(id="mem_recent11", accessed=now)
@@ -159,6 +159,47 @@ class TestSearch:
         results = await index.search()
         assert results[0]["id"] == "mem_recent11"
         assert results[1]["id"] == "mem_old11111"
+
+    async def test_ranking_invariant_recent_high_confidence_wins(self, index):
+        """Core invariant: a recently accessed, high-confidence, tag-matching
+        memory always outranks a stale, low-confidence one."""
+        now = datetime.now(timezone.utc)
+        old = now - timedelta(days=120)
+
+        good = _make_memory(
+            id="mem_good1111",
+            tags=["python", "testing"],
+            confidence=0.9,
+            accessed=now,
+            access_count=10,
+        )
+        stale = _make_memory(
+            id="mem_stale111",
+            tags=["python", "testing"],
+            confidence=0.2,
+            accessed=old,
+            access_count=1,
+        )
+        await index.upsert(good, "/fake/good.md")
+        await index.upsert(stale, "/fake/stale.md")
+
+        results = await index.search(tags=["python"])
+        assert len(results) == 2
+        assert results[0]["id"] == "mem_good1111"
+        assert results[1]["id"] == "mem_stale111"
+        assert results[0]["_score"] > results[1]["_score"] * 2
+
+    async def test_search_respects_decay_half_life(self, index):
+        """A shorter half-life penalizes old memories more aggressively."""
+        now = datetime.now(timezone.utc)
+        old = now - timedelta(days=30)
+        mem = _make_memory(id="mem_decay1111", accessed=old, confidence=0.8)
+        await index.upsert(mem, "/fake/decay.md")
+
+        results_default = await index.search(decay_half_life_days=30)
+        results_short = await index.search(decay_half_life_days=7)
+
+        assert results_default[0]["_score"] > results_short[0]["_score"]
 
     async def test_search_respects_limit(self, index):
         for i in range(5):
