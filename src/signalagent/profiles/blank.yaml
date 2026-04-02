@@ -11,3 +11,7 @@ micro_agents: []
 
 plugins:
   available: [file_system, bash, web_search]
+
+heartbeat:
+  clock_triggers: []
+  event_triggers: []
