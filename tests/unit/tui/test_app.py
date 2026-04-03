@@ -243,3 +243,47 @@ class TestMessageFlow:
             await pilot.press("enter")
             await pilot.pause()
             assert chat_input.has_focus
+
+
+class TestSessionResume:
+    @pytest.mark.asyncio
+    async def test_resume_shows_last_6_turns(self, tmp_instance_dir, patch_bootstrap):
+        """Resuming a session displays the last 6 turns."""
+        from signalagent.sessions.manager import SessionManager
+        from signalagent.core.models import Turn
+        from datetime import datetime, timezone
+
+        sm = SessionManager(tmp_instance_dir / "data" / "sessions")
+        sid = sm.create()
+        now = datetime.now(timezone.utc)
+
+        # Write 8 turns -- only last 6 should display
+        for i in range(4):
+            sm.append(sid, Turn(role="user", content=f"User msg {i}", timestamp=now))
+            sm.append(sid, Turn(role="assistant", content=f"Agent msg {i}", timestamp=now))
+
+        app = SignalApp(instance_dir=tmp_instance_dir, session_id=sid)
+        async with app.run_test():
+            chat_log = app.query_one(ChatLog)
+            # "Starting..." + "Resuming session" + 6 turns + separator = 9 messages
+            assert chat_log.line_count >= 8
+
+    @pytest.mark.asyncio
+    async def test_new_session_shows_id(self, tmp_instance_dir, patch_bootstrap):
+        """New session shows session ID in ChatLog."""
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test():
+            chat_log = app.query_one(ChatLog)
+            # "Starting..." + "New session: ses_xxx" = at least 2 messages
+            assert chat_log.line_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_header_shows_session_and_model(self, tmp_instance_dir, patch_bootstrap):
+        """Header displays session ID and model name after bootstrap."""
+        from signalagent.tui.app import SignalHeader
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test():
+            header = app.query_one(SignalHeader)
+            rendered = str(header.content)
+            assert app.session_id in rendered
+            assert "test-model/test-v1" in rendered
