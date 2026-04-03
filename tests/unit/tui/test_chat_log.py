@@ -55,7 +55,7 @@ class TestChatLogWrite:
             chat_log.write_user("first")
             chat_log.write_agent("second")
             chat_log.write_system("third")
-            assert chat_log.line_count >= 3
+            assert chat_log.line_count == 3
 
     @pytest.mark.asyncio
     async def test_write_user_empty_string(self):
