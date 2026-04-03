@@ -1,4 +1,8 @@
-"""Memory engine -- orchestrates storage and index."""
+"""Memory engine -- orchestrates storage and index.
+
+Provides the public API for all memory operations. Nothing outside the
+memory package should touch MemoryStorage or MemoryIndex directly.
+"""
 
 from __future__ import annotations
 
@@ -42,6 +46,16 @@ class MemoryEngine:
         decay_half_life_days: int = 30,
         embedder: object | None = None,
     ) -> None:
+        """Initialise the memory engine.
+
+        Args:
+            instance_dir: Root instance directory containing the ``memory/``
+                subdirectory.
+            decay_half_life_days: Days after which a memory's relevance
+                score is halved.
+            embedder: Optional embedding provider (EmbeddingProtocol) for
+                semantic search. None disables embedding.
+        """
         self._memory_dir = instance_dir / "memory"
         self._storage = MemoryStorage(self._memory_dir)
         self._index = MemoryIndex(self._memory_dir / "index.db")
@@ -61,7 +75,18 @@ class MemoryEngine:
         content: str,
         confidence: float = 0.5,
     ) -> Memory:
-        """Factory: build a Memory with generated ID and timestamps."""
+        """Factory: build a Memory with generated ID and timestamps.
+
+        Args:
+            agent: Owning agent name.
+            memory_type: Category of the new memory.
+            tags: Searchable tags.
+            content: Textual content of the memory.
+            confidence: Initial confidence score (0.0-1.0).
+
+        Returns:
+            A new Memory instance ready for ``store()``.
+        """
         now = datetime.now(timezone.utc)
         return Memory(
             id=generate_memory_id(),
@@ -85,6 +110,12 @@ class MemoryEngine:
 
         File-first ordering: if index or embedding fails, the file is
         still on disk and rebuild_index()/rebuild_embeddings() can recover.
+
+        Args:
+            memory: Memory object to persist.
+
+        Returns:
+            The same Memory instance (unchanged).
         """
         path = self._storage.write(memory)
         await self._index.upsert(memory, path)
@@ -104,6 +135,10 @@ class MemoryEngine:
 
         The memory drops out of default search results. File stays on disk.
         Reversible by manually setting is_archived=0 in the index.
+
+        Args:
+            memory_id: ID of the memory to archive.
+            reason: Human-readable reason stored in the changelog.
         """
         row = await self._index.get(memory_id)
         if row is None:
@@ -137,6 +172,16 @@ class MemoryEngine:
         Creates a new memory with consolidated_from set. For each source:
         updates superseded_by on the file, appends changelog, then archives.
         File-first safety: new memory is created before sources are updated.
+
+        Args:
+            source_ids: IDs of the memories to consolidate.
+            new_content: Merged content for the new memory.
+            new_tags: Tags for the consolidated memory.
+            agent: Owning agent name.
+            memory_type: Type of the consolidated memory.
+
+        Returns:
+            The newly created consolidated Memory.
         """
         now = datetime.now(timezone.utc)
         new_memory = Memory(
@@ -312,7 +357,11 @@ class MemoryEngine:
     async def inspect(self, memory_id: str) -> Memory | None:
         """Load a single memory by ID. Touches access stats.
 
-        Returns None if the memory doesn't exist.
+        Args:
+            memory_id: ID of the memory to inspect.
+
+        Returns:
+            The Memory object, or None if not found.
         """
         row = await self._index.get(memory_id)
         if row is None:
@@ -326,7 +375,11 @@ class MemoryEngine:
             return None
 
     async def delete(self, memory_id: str) -> None:
-        """Remove from both disk and index."""
+        """Remove from both disk and index.
+
+        Args:
+            memory_id: ID of the memory to delete permanently.
+        """
         row = await self._index.get(memory_id)
         if row is None:
             return
@@ -359,6 +412,13 @@ class MemoryEngine:
         O(n^2) per agent on memory count -- acceptable for weekly maintenance
         runs with capped candidate counts. Phase 9b embeddings enable
         efficient clustering if scale becomes an issue.
+
+        Args:
+            agent: Optional agent name filter.
+            min_overlap: Minimum shared tags to consider memories related.
+
+        Returns:
+            List of memory groups, each containing 2+ related memories.
         """
         rows = await self._index.list_active(agent=agent)
         memories: list[Memory] = []
@@ -420,7 +480,13 @@ class MemoryEngine:
         1. days_since_access > threshold_days, AND
         2. effective confidence (confidence * decay_factor) < min_confidence
 
-        Returns list of (memory_id, reason) tuples.
+        Args:
+            threshold_days: Minimum days without access to consider.
+            min_confidence: Effective confidence threshold below which
+                the memory is considered stale.
+
+        Returns:
+            List of (memory_id, reason) tuples.
         """
         rows = await self._index.list_active()
         now = datetime.now(timezone.utc)
@@ -451,7 +517,12 @@ class MemoryEngine:
         """Backfill embedding vectors for memories that lack them.
 
         Processes in batches to respect embedding API limits.
-        Returns the count of memories embedded.
+
+        Args:
+            batch_size: Number of memories to embed per API call.
+
+        Returns:
+            Count of memories that were newly embedded.
         """
         if self._embedder is None:
             return 0

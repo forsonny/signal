@@ -16,7 +16,14 @@ CONFIDENCE_WEIGHT = 0.25
 
 
 def compute_frequency_score(access_count: int) -> float:
-    """Compute frequency score from access count. Capped at 1.0."""
+    """Compute frequency score from access count. Capped at 1.0.
+
+    Args:
+        access_count: Number of times the memory has been accessed.
+
+    Returns:
+        Score between 0.0 and 1.0.
+    """
     return min(math.log(access_count + 1) / 10.0, 1.0)
 
 
@@ -38,6 +45,10 @@ def compute_score(
         confidence: Memory's confidence value (0.0-1.0).
         days_since_access: Days since last access.
         decay_half_life_days: Days after which score is halved.
+
+    Returns:
+        Effective score incorporating relevance, frequency, confidence,
+        and time decay.
     """
     base_score = (
         relevance * RELEVANCE_WEIGHT

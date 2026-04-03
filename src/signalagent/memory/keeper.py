@@ -50,6 +50,14 @@ class MemoryKeeperAgent(BaseAgent):
         config: MemoryKeeperConfig,
         model: str,
     ) -> None:
+        """Initialise the MemoryKeeper agent.
+
+        Args:
+            ai: AI layer for LLM classification and consolidation calls.
+            engine: Memory engine for direct storage/index operations.
+            config: Keeper-specific configuration (schedule, thresholds).
+            model: LLM model identifier for maintenance prompts.
+        """
         super().__init__(name=MEMORY_KEEPER_AGENT, agent_type=AgentType.MEMORY_KEEPER)
         self._ai = ai
         self._engine = engine
@@ -58,6 +66,7 @@ class MemoryKeeperAgent(BaseAgent):
 
     @property
     def skill(self) -> str:
+        """Return the keeper's skill description."""
         return (
             "memory system maintenance: consolidation, "
             "contradiction detection, staleness archival"

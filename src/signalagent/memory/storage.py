@@ -1,4 +1,9 @@
-"""Atomic markdown file storage for memories."""
+"""Atomic markdown file storage for memories.
+
+Handles reading, writing, and deleting Memory objects as individual
+markdown files with YAML frontmatter. Writes are crash-safe via
+temp-file-then-replace.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +24,12 @@ class MemoryStorage:
     """
 
     def __init__(self, memory_root: Path) -> None:
+        """Initialise storage rooted at a directory.
+
+        Args:
+            memory_root: Base directory for all memory files (e.g.
+                ``instance_dir / "memory"``).
+        """
         self._root = memory_root
 
     def resolve_path(self, memory: Memory) -> Path:
@@ -28,6 +39,12 @@ class MemoryStorage:
         - type == SHARED   -> shared/{id}.md       (agent ignored)
         - agent == "prime"  -> prime/{type}/{id}.md
         - otherwise         -> micro/{agent}/{type}/{id}.md
+
+        Args:
+            memory: Memory object whose path to resolve.
+
+        Returns:
+            Absolute file path for this memory's markdown file.
         """
         if memory.type == MemoryType.SHARED:
             return self._root / "shared" / f"{memory.id}.md"
@@ -38,7 +55,14 @@ class MemoryStorage:
         )
 
     def write(self, memory: Memory) -> Path:
-        """Write memory to disk as atomic markdown file. Returns file path."""
+        """Write memory to disk as atomic markdown file.
+
+        Args:
+            memory: Memory object to persist.
+
+        Returns:
+            Path to the written file.
+        """
         path = self.resolve_path(memory)
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -77,6 +101,15 @@ class MemoryStorage:
         Assumes exactly two ``---`` markers produced by write(). Content
         must not contain a bare ``---`` on its own line (e.g., a markdown
         horizontal rule) or the parse will split incorrectly.
+
+        Args:
+            file_path: Path to the ``.md`` memory file.
+
+        Returns:
+            Parsed Memory object.
+
+        Raises:
+            MemoryStoreError: If the file is missing or malformed.
         """
         if not file_path.exists():
             raise MemoryStoreError(f"Memory file not found: {file_path}")
@@ -95,16 +128,21 @@ class MemoryStorage:
         return Memory(**frontmatter, content=content)
 
     def delete(self, file_path: Path) -> None:
-        """Remove a memory file from disk."""
+        """Remove a memory file from disk.
+
+        Args:
+            file_path: Path to the file to delete. No-op if missing.
+        """
         if file_path.exists():
             file_path.unlink()
 
     def scan_all_files(self) -> list[tuple[Path, Memory]]:
         """Walk the memory directory tree and parse every .md file.
 
-        Returns a list of (file_path, Memory) pairs. Skips files that
-        fail to parse. Used by MemoryEngine.rebuild_index() to re-index
-        all memories without reaching into storage internals.
+        Returns:
+            List of (file_path, Memory) pairs. Skips files that fail
+            to parse. Used by MemoryEngine.rebuild_index() to re-index
+            all memories without reaching into storage internals.
         """
         results: list[tuple[Path, Memory]] = []
         for md_file in self._root.rglob("*.md"):

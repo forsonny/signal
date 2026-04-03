@@ -1,7 +1,8 @@
 """Pure functions for memory maintenance prompts and response parsing.
 
 Separated from keeper.py so prompt text and parsing logic are
-independently testable without agent infrastructure.
+independently testable without agent infrastructure. Used exclusively
+by the MemoryKeeperAgent.
 """
 
 from __future__ import annotations
@@ -18,7 +19,14 @@ _VALID_ACTION_TYPES = frozenset({"archive", "consolidate", "skip"})
 
 
 def build_classification_prompt(memories: list[Memory]) -> str:
-    """Build a prompt asking the LLM to classify a group of memories."""
+    """Build a prompt asking the LLM to classify a group of memories.
+
+    Args:
+        memories: Group of related memories to classify.
+
+    Returns:
+        Fully formatted classification prompt string.
+    """
     now = datetime.now(timezone.utc)
     blocks: list[str] = []
     for i, mem in enumerate(memories, 1):
@@ -68,7 +76,14 @@ def build_classification_prompt(memories: list[Memory]) -> str:
 
 
 def build_consolidation_prompt(memories: list[Memory]) -> str:
-    """Build a prompt asking the LLM to merge memories into one."""
+    """Build a prompt asking the LLM to merge memories into one.
+
+    Args:
+        memories: Source memories to merge.
+
+    Returns:
+        Fully formatted consolidation prompt string.
+    """
     blocks: list[str] = []
     for i, mem in enumerate(memories, 1):
         blocks.append(
@@ -98,7 +113,12 @@ def parse_json_response(text: str) -> dict | None:
     """Parse JSON from LLM response, handling common formatting issues.
 
     Strips markdown code fences, then attempts json.loads().
-    Returns None on any parse failure.
+
+    Args:
+        text: Raw LLM response text.
+
+    Returns:
+        Parsed dict, or None on any parse failure.
     """
     text = text.strip()
     if not text:
@@ -114,7 +134,14 @@ def parse_json_response(text: str) -> dict | None:
 
 
 def validate_classification(data: dict) -> bool:
-    """Check that a classification response has required fields and valid values."""
+    """Check that a classification response has required fields and valid values.
+
+    Args:
+        data: Parsed JSON dict from the LLM.
+
+    Returns:
+        True if the classification and action fields are valid.
+    """
     if data.get("classification") not in _VALID_CLASSIFICATIONS:
         return False
     action = data.get("action")
@@ -126,7 +153,14 @@ def validate_classification(data: dict) -> bool:
 
 
 def validate_consolidation(data: dict) -> bool:
-    """Check that a consolidation response has required fields."""
+    """Check that a consolidation response has required fields.
+
+    Args:
+        data: Parsed JSON dict from the LLM.
+
+    Returns:
+        True if content and tags fields are present and valid.
+    """
     if "content" not in data:
         return False
     if not isinstance(data.get("tags"), list):

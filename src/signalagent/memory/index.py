@@ -1,4 +1,9 @@
-"""SQLite metadata index for memory retrieval."""
+"""SQLite metadata index for memory retrieval.
+
+Stores metadata and embedding vectors in SQLite for fast lookups.
+Content stays on disk as markdown files -- the index only holds what's
+needed for search and scoring.
+"""
 
 from __future__ import annotations
 
@@ -61,11 +66,16 @@ class MemoryIndex:
     """
 
     def __init__(self, db_path: str | Path) -> None:
+        """Initialise the index.
+
+        Args:
+            db_path: Path to the SQLite database file.
+        """
         self._db_path = str(db_path)
         self._db: aiosqlite.Connection | None = None
 
     async def initialize(self) -> None:
-        """Create the index table if it doesn't exist."""
+        """Open the database connection and create tables if needed."""
         self._db = await aiosqlite.connect(self._db_path)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute(_CREATE_TABLE)
@@ -73,7 +83,12 @@ class MemoryIndex:
         await self._db.commit()
 
     async def upsert(self, memory: Memory, file_path: str | Path) -> None:
-        """Insert or update an index entry from a Memory object."""
+        """Insert or update an index entry from a Memory object.
+
+        Args:
+            memory: Memory whose metadata to index.
+            file_path: On-disk path to the memory's markdown file.
+        """
         assert self._db is not None
         await self._db.execute(
             _UPSERT,
@@ -96,7 +111,11 @@ class MemoryIndex:
         await self._db.commit()
 
     async def remove(self, memory_id: str) -> None:
-        """Delete an entry from the index."""
+        """Delete an entry from the index.
+
+        Args:
+            memory_id: ID of the memory to remove.
+        """
         assert self._db is not None
         await self._db.execute(
             "DELETE FROM memory_index WHERE id = ?", (memory_id,)
@@ -104,7 +123,14 @@ class MemoryIndex:
         await self._db.commit()
 
     async def get(self, memory_id: str) -> dict | None:
-        """Fetch a single index row by ID."""
+        """Fetch a single index row by ID.
+
+        Args:
+            memory_id: ID of the memory to fetch.
+
+        Returns:
+            Row dict, or None if not found.
+        """
         assert self._db is not None
         cursor = await self._db.execute(
             "SELECT * FROM memory_index WHERE id = ?", (memory_id,)
@@ -198,7 +224,11 @@ class MemoryIndex:
         return results[:limit]
 
     async def touch(self, memory_id: str) -> None:
-        """Update accessed_at and increment access_count."""
+        """Update accessed_at and increment access_count.
+
+        Args:
+            memory_id: ID of the memory to touch.
+        """
         assert self._db is not None
         now = datetime.now(timezone.utc).isoformat()
         await self._db.execute(
@@ -209,7 +239,11 @@ class MemoryIndex:
         await self._db.commit()
 
     async def archive(self, memory_id: str) -> None:
-        """Mark a memory as archived. It will no longer appear in default searches."""
+        """Mark a memory as archived. It will no longer appear in default searches.
+
+        Args:
+            memory_id: ID of the memory to archive.
+        """
         assert self._db is not None
         await self._db.execute(
             "UPDATE memory_index SET is_archived = 1 WHERE id = ?",
@@ -222,6 +256,12 @@ class MemoryIndex:
 
         No scoring -- used by maintenance operations (find_groups, find_stale).
         O(n) on total memory count per agent.
+
+        Args:
+            agent: Optional agent name filter.
+
+        Returns:
+            List of row dicts for all active memories.
         """
         assert self._db is not None
         conditions = ["is_archived = 0"]
@@ -237,7 +277,12 @@ class MemoryIndex:
         return [dict(row) for row in rows]
 
     async def store_embedding(self, memory_id: str, vector: list[float]) -> None:
-        """Store an embedding vector as a BLOB."""
+        """Store an embedding vector as a BLOB.
+
+        Args:
+            memory_id: ID of the memory this embedding belongs to.
+            vector: Float vector to store.
+        """
         assert self._db is not None
         blob = struct.pack(f"{len(vector)}f", *vector)
         await self._db.execute(
@@ -247,7 +292,14 @@ class MemoryIndex:
         await self._db.commit()
 
     async def get_embedding(self, memory_id: str) -> list[float] | None:
-        """Retrieve an embedding vector by memory ID."""
+        """Retrieve an embedding vector by memory ID.
+
+        Args:
+            memory_id: ID of the memory whose embedding to fetch.
+
+        Returns:
+            Float vector, or None if no embedding is stored.
+        """
         assert self._db is not None
         cursor = await self._db.execute(
             "SELECT embedding FROM memory_embeddings WHERE id = ?",
@@ -269,6 +321,13 @@ class MemoryIndex:
 
         Uses SQL JOIN to filter by agent and exclude archived --
         filtering happens in SQL, not after loading BLOBs into Python.
+
+        Args:
+            agent: Optional agent name filter.
+            include_archived: Whether to include archived memories.
+
+        Returns:
+            List of (memory_id, vector) tuples.
         """
         assert self._db is not None
         conditions = []
