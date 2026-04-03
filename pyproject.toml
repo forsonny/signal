@@ -23,6 +23,7 @@ dependencies = [
     "aiosqlite>=0.19",
     "httpx>=0.25",
     "pyyaml>=6.0",
+    "textual>=8.0,<9",
 ]
 
 [project.urls]
@@ -54,6 +55,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.12",
+    "textual-dev>=1.0",
 ]
 docs = [
     "mkdocs-material>=9.5",
