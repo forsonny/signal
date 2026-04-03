@@ -16,7 +16,14 @@ DEFAULT_MEMORY_LIMIT = 20
 
 
 def _format_memory(memory: Memory) -> str:
-    """Format a single memory as a prompt block."""
+    """Format a single memory as a Markdown prompt block.
+
+    Args:
+        memory: The memory entry to format.
+
+    Returns:
+        A Markdown string with a ``### type`` heading and the memory content.
+    """
     if memory.tags:
         heading = f"### {memory.type.value}: {memory.tags[0]}"
     else:
