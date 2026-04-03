@@ -214,6 +214,62 @@ class TestDelete:
         await engine.delete("mem_nonexist")  # should not raise
 
 
+class TestStoreWithEmbedder:
+    async def test_store_embeds_content(self, tmp_path):
+        """When embedder is present, store() embeds content."""
+        from unittest.mock import AsyncMock
+        mock_embedder = AsyncMock()
+        mock_embedder.embed = AsyncMock(return_value=[[0.1, 0.2, 0.3]])
+
+        eng = MemoryEngine(tmp_path, embedder=mock_embedder)
+        await eng.initialize()
+
+        mem = eng.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="embed this content",
+        )
+        await eng.store(mem)
+
+        mock_embedder.embed.assert_called_once_with(["embed this content"])
+        vector = await eng._index.get_embedding(mem.id)
+        assert vector is not None
+        assert len(vector) == 3
+
+        await eng.close()
+
+    async def test_store_without_embedder_skips(self, engine):
+        """When no embedder, store() works normally without embedding."""
+        mem = engine.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="no embedding",
+        )
+        await engine.store(mem)
+        vector = await engine._index.get_embedding(mem.id)
+        assert vector is None
+
+    async def test_store_embedding_failure_doesnt_lose_memory(self, tmp_path):
+        """If embedding API fails, memory is still stored on disk and indexed."""
+        from unittest.mock import AsyncMock
+        mock_embedder = AsyncMock()
+        mock_embedder.embed = AsyncMock(side_effect=Exception("API error"))
+
+        eng = MemoryEngine(tmp_path, embedder=mock_embedder)
+        await eng.initialize()
+
+        mem = eng.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="important memory",
+        )
+        await eng.store(mem)
+
+        # Memory should still be searchable by tags
+        results = await eng.search(tags=["test"])
+        assert len(results) == 1
+        assert results[0].content == "important memory"
+
+        await eng.close()
+
+
 class TestRebuildIndex:
     async def test_rebuild_indexes_all_files(self, engine):
         mems = []

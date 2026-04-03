@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from signalagent.core.models import Memory
 from signalagent.core.types import MemoryType
 from signalagent.memory.index import MemoryIndex
 from signalagent.memory.storage import MemoryStorage
+
+logger = logging.getLogger(__name__)
 
 
 def generate_memory_id() -> str:
@@ -31,11 +34,17 @@ class MemoryEngine:
     at startup -- not recreated per operation.
     """
 
-    def __init__(self, instance_dir: Path, decay_half_life_days: int = 30) -> None:
+    def __init__(
+        self,
+        instance_dir: Path,
+        decay_half_life_days: int = 30,
+        embedder: object | None = None,
+    ) -> None:
         self._memory_dir = instance_dir / "memory"
         self._storage = MemoryStorage(self._memory_dir)
         self._index = MemoryIndex(self._memory_dir / "index.db")
         self._decay_half_life_days = decay_half_life_days
+        self._embedder = embedder
 
     async def initialize(self) -> None:
         """Initialize the SQLite index. Call once at startup."""
@@ -70,13 +79,22 @@ class MemoryEngine:
         )
 
     async def store(self, memory: Memory) -> Memory:
-        """Write memory to disk, then upsert index. Returns the memory.
+        """Write memory to disk, then upsert index, then embed.
 
-        File-first ordering: if index write fails, the file is still
-        on disk and rebuild_index() can recover it.
+        File-first ordering: if index or embedding fails, the file is
+        still on disk and rebuild_index()/rebuild_embeddings() can recover.
         """
         path = self._storage.write(memory)
         await self._index.upsert(memory, path)
+        if self._embedder is not None:
+            try:
+                vectors = await self._embedder.embed([memory.content])
+                await self._index.store_embedding(memory.id, vectors[0])
+            except Exception:
+                logger.warning(
+                    "Embedding failed for %s, memory stored without vector",
+                    memory.id,
+                )
         return memory
 
     async def archive(self, memory_id: str, reason: str) -> None:
