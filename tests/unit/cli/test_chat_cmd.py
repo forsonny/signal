@@ -20,3 +20,8 @@ class TestChatCommand:
         """signal chat --session is a recognized option."""
         result = runner.invoke(app, ["chat", "--session", "ses_test0001"])
         assert "No such option" not in (result.output or "")
+
+    def test_chat_accepts_simple_option(self):
+        """signal chat --simple is a recognized option."""
+        result = runner.invoke(app, ["chat", "--simple"])
+        assert "No such option" not in (result.output or "")

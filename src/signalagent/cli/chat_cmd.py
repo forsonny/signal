@@ -91,16 +91,21 @@ async def _async_chat(session_id: str | None, instance_dir: Path) -> None:
 @app.command()
 def chat(
     session: str | None = typer.Option(None, "--session", "-s", help="Resume a session by ID"),
+    simple: bool = typer.Option(False, "--simple", help="Use simple Rich REPL instead of TUI"),
 ) -> None:
     """Start an interactive multi-turn conversation.
 
     Args:
         session: Optional session ID to resume. When ``None``, a new
             session is created automatically.
+        simple: When ``True``, use the plain Rich REPL instead of
+            the Textual TUI.
 
     Raises:
         typer.Exit: If no Signal instance is found in the directory tree.
     """
+    import sys
+
     try:
         from signalagent.core.config import find_instance
         instance_dir = find_instance(Path.cwd())
@@ -108,4 +113,9 @@ def chat(
         console.print("[red]No Signal instance found. Run 'signal init' first.[/red]")
         raise typer.Exit(1)
 
-    asyncio.run(_async_chat(session, instance_dir))
+    if simple or not sys.stdin.isatty() or not sys.stdout.isatty():
+        asyncio.run(_async_chat(session, instance_dir))
+    else:
+        from signalagent.tui.app import SignalApp
+        tui = SignalApp(instance_dir=instance_dir, session_id=session)
+        tui.run()
