@@ -32,11 +32,28 @@ class HookExecutor:
         registry: HookRegistry,
         agent: str = "",
     ) -> None:
+        """Initialise the hook executor.
+
+        Args:
+            inner: The underlying ToolExecutor to wrap.
+            registry: HookRegistry containing the hooks to run.
+            agent: Name of the owning agent, forwarded to each hook.
+        """
         self._inner = inner
         self._registry = registry
         self._agent = agent
 
     async def __call__(self, tool_name: str, arguments: dict) -> ToolResult:
+        """Run the before/after hook lifecycle around a tool call.
+
+        Args:
+            tool_name: Name of the tool to execute.
+            arguments: Arguments supplied by the LLM.
+
+        Returns:
+            ToolResult from the inner executor, or a blocking result
+            from a before-hook.
+        """
         hooks = self._registry.get_all()
         blocked = False
         result: ToolResult | None = None

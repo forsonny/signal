@@ -18,17 +18,38 @@ class Hook(Protocol):
     """
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Unique hook name for logging and diagnostics."""
+        ...
 
     async def before_tool_call(
         self, tool_name: str, arguments: dict, agent: str = "",
     ) -> ToolResult | None:
-        """Return None to allow, or ToolResult with error to block."""
+        """Inspect or block a tool call before execution.
+
+        Args:
+            tool_name: Name of the tool about to be called.
+            arguments: Arguments the LLM supplied.
+            agent: Name of the calling agent (empty for the root agent).
+
+        Returns:
+            None to allow the call, or a ToolResult (with error) to block it.
+        """
         ...
 
     async def after_tool_call(
         self, tool_name: str, arguments: dict, result: ToolResult,
         blocked: bool, agent: str = "",
     ) -> None:
-        """Observe only. Always fires, including on blocked calls."""
+        """Observe a completed (or blocked) tool call.
+
+        Always fires, including when a before-hook blocked the call.
+
+        Args:
+            tool_name: Name of the tool that was called.
+            arguments: Arguments the LLM supplied.
+            result: The ToolResult produced (or the blocking result).
+            blocked: True if a before-hook blocked execution.
+            agent: Name of the calling agent.
+        """
         ...
