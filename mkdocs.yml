@@ -1,0 +1,95 @@
+site_name: Signal
+site_description: AI agent runtime framework
+site_url: https://github.com/forsonny/signal
+repo_url: https://github.com/forsonny/signal
+repo_name: forsonny/signal
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.integrate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_signature_annotations: true
+            members_order: source
+            merge_init_into_class: true
+            show_root_heading: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quickstart: getting-started/quickstart.md
+    - Your First Profile: getting-started/first-profile.md
+  - User Guide:
+    - Core Concepts: user-guide/concepts.md
+    - CLI Reference: user-guide/cli-reference.md
+    - Configuration: user-guide/configuration.md
+    - Profiles: user-guide/profiles.md
+    - Memory: user-guide/memory.md
+    - Sessions: user-guide/sessions.md
+    - Heartbeat: user-guide/heartbeat.md
+    - Worktrees & Forks: user-guide/worktrees-and-forks.md
+    - Docker: user-guide/docker.md
+    - Security: user-guide/security.md
+  - Developer Guide:
+    - Architecture: developer-guide/architecture.md
+    - Project Structure: developer-guide/project-structure.md
+    - Contributing: developer-guide/contributing.md
+    - Testing: developer-guide/testing.md
+    - Extending Agents: developer-guide/extending-agents.md
+    - Extending Tools: developer-guide/extending-tools.md
+    - Extending Hooks: developer-guide/extending-hooks.md
+    - Error Handling: developer-guide/error-handling.md
+  - API Reference:
+    - Overview: api/index.md
+    - Core: api/core.md
+    - Agents: api/agents.md
+    - AI Layer: api/ai.md
+    - Memory: api/memory.md
+    - Runtime: api/runtime.md
+    - Tools: api/tools.md
+    - Hooks: api/hooks.md
+    - Communication: api/comms.md
+    - Heartbeat: api/heartbeat.md
+    - Sessions: api/sessions.md
+    - Security: api/security.md
+    - Worktrees: api/worktrees.md
+    - CLI: api/cli.md
+    - Prompts: api/prompts.md
+  - Roadmap: roadmap.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
