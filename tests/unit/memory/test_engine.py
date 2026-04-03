@@ -298,3 +298,51 @@ class TestRebuildIndex:
         # Verify all memories are back
         results = await engine.search()
         assert len(results) == 3
+
+
+class TestRebuildEmbeddings:
+    async def test_backfills_missing_embeddings(self, tmp_path):
+        """rebuild_embeddings() embeds memories that lack vectors."""
+        from unittest.mock import AsyncMock
+
+        # Create engine without embedder, store memories
+        eng = MemoryEngine(tmp_path)
+        await eng.initialize()
+        m1 = eng.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="first",
+        )
+        m2 = eng.create_memory(
+            agent="prime", memory_type=MemoryType.IDENTITY,
+            tags=["test"], content="second",
+        )
+        await eng.store(m1)
+        await eng.store(m2)
+        await eng.close()
+
+        # Re-open with embedder
+        mock_embedder = AsyncMock()
+        mock_embedder.embed = AsyncMock(
+            return_value=[[0.1, 0.2], [0.3, 0.4]],
+        )
+        eng2 = MemoryEngine(tmp_path, embedder=mock_embedder)
+        await eng2.initialize()
+
+        count = await eng2.rebuild_embeddings()
+        assert count == 2
+
+        # Both should now have embeddings
+        v1 = await eng2._index.get_embedding(m1.id)
+        v2 = await eng2._index.get_embedding(m2.id)
+        assert v1 is not None
+        assert v2 is not None
+
+        await eng2.close()
+
+    async def test_rebuild_requires_embedder(self, tmp_path):
+        """rebuild_embeddings() returns 0 when no embedder is configured."""
+        eng = MemoryEngine(tmp_path)
+        await eng.initialize()
+        count = await eng.rebuild_embeddings()
+        assert count == 0
+        await eng.close()

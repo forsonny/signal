@@ -447,6 +447,43 @@ class MemoryEngine:
 
         return stale
 
+    async def rebuild_embeddings(self, batch_size: int = 50) -> int:
+        """Backfill embedding vectors for memories that lack them.
+
+        Processes in batches to respect embedding API limits.
+        Returns the count of memories embedded.
+        """
+        if self._embedder is None:
+            return 0
+
+        count = 0
+        batch_ids: list[str] = []
+        batch_contents: list[str] = []
+
+        for file_path, memory in self._storage.scan_all_files():
+            existing = await self._index.get_embedding(memory.id)
+            if existing is not None:
+                continue
+            batch_ids.append(memory.id)
+            batch_contents.append(memory.content)
+
+            if len(batch_contents) >= batch_size:
+                vectors = await self._embedder.embed(batch_contents)
+                for mid, vec in zip(batch_ids, vectors):
+                    await self._index.store_embedding(mid, vec)
+                count += len(batch_ids)
+                batch_ids.clear()
+                batch_contents.clear()
+
+        # Final partial batch
+        if batch_contents:
+            vectors = await self._embedder.embed(batch_contents)
+            for mid, vec in zip(batch_ids, vectors):
+                await self._index.store_embedding(mid, vec)
+            count += len(batch_ids)
+
+        return count
+
     async def close(self) -> None:
         """Close the index connection."""
         await self._index.close()
