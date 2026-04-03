@@ -29,6 +29,14 @@ class PolicyMemoryReader:
         audit: AuditLogger,
         agent: str,
     ) -> None:
+        """Wrap *inner* with policy-filtered memory reads.
+
+        Args:
+            inner: Underlying memory reader (``MemoryReaderProtocol``).
+            engine: Policy engine used to resolve memory-read scopes.
+            audit: Audit logger for denied-access events.
+            agent: Name of the agent this reader is scoped to.
+        """
         self._inner = inner
         self._engine = engine
         self._audit = audit
@@ -43,6 +51,23 @@ class PolicyMemoryReader:
         touch: bool = False,
         query: str | None = None,
     ) -> list[Any]:
+        """Search memories, filtering results by the agent's policy scope.
+
+        Delegates to the inner reader and then removes any memories whose
+        owning agent is not in the policy-allowed set.  Denied memories are
+        logged as ``policy_denial`` audit events.
+
+        Args:
+            tags: Optional tag filter forwarded to the inner reader.
+            agent: Optional agent-name filter forwarded to the inner reader.
+            memory_type: Optional memory-type filter (e.g. ``"shared"``).
+            limit: Maximum number of results to return.
+            touch: Whether to update the ``last_accessed`` timestamp.
+            query: Free-text search query forwarded to the inner reader.
+
+        Returns:
+            A list of memory entries the calling agent is permitted to see.
+        """
         allowed_agents = self._engine.filter_memory_agents(self._agent)
 
         if allowed_agents is None:

@@ -20,6 +20,12 @@ class PolicyHook:
     """
 
     def __init__(self, engine: PolicyEngine, audit: AuditLogger) -> None:
+        """Create a policy hook backed by *engine* and *audit*.
+
+        Args:
+            engine: Policy engine for tool-access decisions.
+            audit: Audit logger for recording decisions and tool calls.
+        """
         self._engine = engine
         self._audit = audit
         self._pending_start: float | None = None
@@ -27,15 +33,32 @@ class PolicyHook:
 
     @property
     def name(self) -> str:
+        """Return the hook identifier (``"policy"``)."""
         return "policy"
 
     @property
     def fail_closed(self) -> bool:
+        """Return ``True`` -- a crash in this hook blocks the tool call."""
         return True
 
     async def before_tool_call(
         self, tool_name: str, arguments: dict, agent: str = "",
     ) -> ToolResult | None:
+        """Evaluate policy before a tool executes.
+
+        Records the start time for duration tracking, emits a warning if
+        the agent has no policy entry, and blocks the call with a
+        ``ToolResult`` error when the policy denies access.
+
+        Args:
+            tool_name: Name of the tool about to be invoked.
+            arguments: Arguments the tool will receive.
+            agent: Name of the calling agent (empty string if unknown).
+
+        Returns:
+            ``None`` if the call is allowed, or a ``ToolResult`` with an
+            error message if the policy denies access.
+        """
         self._pending_start = time.monotonic()
         self._pending_agent = agent
 
@@ -59,6 +82,15 @@ class PolicyHook:
         self, tool_name: str, arguments: dict,
         result: ToolResult, blocked: bool, agent: str = "",
     ) -> None:
+        """Log a ``tool_call`` audit event after tool execution completes.
+
+        Args:
+            tool_name: Name of the tool that was invoked.
+            arguments: Arguments the tool received.
+            result: The ``ToolResult`` returned by the tool.
+            blocked: Whether a *different* hook blocked this call.
+            agent: Name of the calling agent.
+        """
         duration_ms = 0
         if self._pending_start is not None:
             duration_ms = int(
