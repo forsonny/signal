@@ -1,10 +1,17 @@
-"""Core enums and type definitions for Signal."""
+"""Core enums and type definitions for Signal.
+
+Defines the vocabulary of agent types, statuses, task lifecycle states,
+message types, and memory categories used throughout the runtime.
+"""
 
 from enum import Enum
 
 
 class AgentType(str, Enum):
-    """Type of agent in the Signal system."""
+    """Type of agent in the Signal system.
+
+    Determines registration behavior and routing rules in the AgentHost.
+    """
 
     PRIME = "prime"
     MICRO = "micro"
@@ -13,7 +20,11 @@ class AgentType(str, Enum):
 
 
 class AgentStatus(str, Enum):
-    """Lifecycle status of an agent."""
+    """Lifecycle status of an agent.
+
+    Managed by BaseAgent's template method -- transitions automatically
+    between BUSY and IDLE around message handling.
+    """
 
     CREATED = "created"
     ACTIVE = "active"
@@ -25,7 +36,10 @@ class AgentStatus(str, Enum):
 
 
 class TaskStatus(str, Enum):
-    """Lifecycle status of a task."""
+    """Lifecycle status of a task.
+
+    Tracks a task from creation through execution to completion or archival.
+    """
 
     CREATED = "created"
     QUEUED = "queued"
@@ -38,7 +52,10 @@ class TaskStatus(str, Enum):
 
 
 class TaskPriority(int, Enum):
-    """Task priority levels. Higher value = higher priority."""
+    """Task priority levels. Higher value = higher priority.
+
+    Used by the task scheduler to determine execution order.
+    """
 
     IDLE = 1
     LOW = 2
@@ -48,7 +65,10 @@ class TaskPriority(int, Enum):
 
 
 class MessageType(str, Enum):
-    """Type of inter-agent message."""
+    """Type of inter-agent message.
+
+    Determines how the MessageBus routes and how agents interpret payloads.
+    """
 
     TASK = "task"
     RESULT = "result"
@@ -62,7 +82,10 @@ class MessageType(str, Enum):
 
 
 class MemoryType(str, Enum):
-    """Type of memory stored by an agent."""
+    """Type of memory stored by an agent.
+
+    Controls file-path routing in MemoryStorage and scoping in search queries.
+    """
 
     IDENTITY = "identity"
     LEARNING = "learning"
