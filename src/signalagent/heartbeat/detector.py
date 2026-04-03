@@ -24,13 +24,24 @@ class FileChangeDetector:
     """
 
     def __init__(self, path: str | Path) -> None:
+        """Initialise the detector for a directory.
+
+        Args:
+            path: Root directory to monitor. Git detection is deferred
+                to the first ``check()`` call.
+        """
         self._path = Path(path)
         self._is_git: bool | None = None
         self._last_seen: set[str] = set()
         self._mtime_baseline: dict[str, float] = {}
 
     def check(self) -> list[str]:
-        """Return changed files since last check, or empty list."""
+        """Return changed files since last check, or empty list.
+
+        Returns:
+            Sorted list of changed file paths, or an empty list if
+            nothing changed since the previous call.
+        """
         if self._is_git is None:
             self._is_git = (self._path / ".git").is_dir()
 

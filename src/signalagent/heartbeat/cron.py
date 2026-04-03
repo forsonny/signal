@@ -19,8 +19,19 @@ _FIELD_RANGES: list[tuple[int, int]] = [
 def _parse_field(field: str, min_val: int, max_val: int) -> set[int]:
     """Parse a single cron field into a set of matching integers.
 
-    Supports: * (any), N (exact), N-M (range), */N (step), N,M (list),
-    and combinations like 1-5,15,30.
+    Supports: ``*`` (any), ``N`` (exact), ``N-M`` (range), ``*/N`` (step),
+    ``N,M`` (list), and combinations like ``1-5,15,30``.
+
+    Args:
+        field: Raw cron field string.
+        min_val: Minimum allowed value for the field.
+        max_val: Maximum allowed value for the field.
+
+    Returns:
+        Set of integers that the field matches.
+
+    Raises:
+        ValueError: If the field contains out-of-range or malformed values.
     """
     values: set[int] = set()
 
@@ -69,9 +80,20 @@ def _parse_field(field: str, min_val: int, max_val: int) -> set[int]:
 def cron_match(expression: str, dt: datetime) -> bool:
     """Check if a datetime matches a 5-field cron expression.
 
-    Fields: minute hour day-of-month month day-of-week
+    Fields: ``minute hour day-of-month month day-of-week``.
     Day-of-week uses ISO convention: Monday=0, Sunday=6
-    (matches Python's datetime.weekday()).
+    (matches Python's ``datetime.weekday()``).
+
+    Args:
+        expression: Five whitespace-separated cron fields.
+        dt: The datetime to test.
+
+    Returns:
+        True if *dt* matches all five fields.
+
+    Raises:
+        ValueError: If the expression does not have exactly 5 fields
+            or contains invalid field syntax.
     """
     fields = expression.strip().split()
     if len(fields) != 5:
@@ -90,7 +112,14 @@ def cron_match(expression: str, dt: datetime) -> bool:
 
 
 def validate_cron(expression: str) -> str | None:
-    """Validate a cron expression. Returns error message or None if valid."""
+    """Validate a cron expression without matching a datetime.
+
+    Args:
+        expression: Five whitespace-separated cron fields.
+
+    Returns:
+        A human-readable error message, or None if the expression is valid.
+    """
     fields = expression.strip().split()
     if len(fields) != 5:
         return f"Expected 5 fields, got {len(fields)}"

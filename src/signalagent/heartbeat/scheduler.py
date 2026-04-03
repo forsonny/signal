@@ -36,6 +36,16 @@ class HeartbeatScheduler:
     """
 
     def __init__(self, bus: MessageBus, triggers: list[Trigger]) -> None:
+        """Initialise the scheduler with a bus and trigger list.
+
+        Args:
+            bus: MessageBus used to dispatch trigger messages.
+            triggers: List of ClockTrigger and/or FileEventTrigger
+                instances. Names must be unique.
+
+        Raises:
+            ValueError: If any trigger names are duplicated.
+        """
         names = [t.name for t in triggers]
         if len(names) != len(set(names)):
             dupes = {n for n in names if names.count(n) > 1}
@@ -86,7 +96,16 @@ class HeartbeatScheduler:
     def _should_fire(
         self, trigger: Trigger, state: TriggerState, now: datetime
     ) -> bool:
-        """Evaluate guards and type-specific condition."""
+        """Evaluate guards and type-specific condition.
+
+        Args:
+            trigger: The trigger to evaluate.
+            state: Mutable runtime state for this trigger.
+            now: Current UTC datetime.
+
+        Returns:
+            True if the trigger should fire this tick.
+        """
         if not state.enabled:
             return False
 
@@ -119,7 +138,17 @@ class HeartbeatScheduler:
     def _check_clock(
         self, trigger: ClockTrigger, state: TriggerState, now: datetime
     ) -> bool:
-        """Cron dedup + match. Evaluates once per minute transition."""
+        """Cron dedup + match. Evaluates once per minute transition.
+
+        Args:
+            trigger: ClockTrigger with a cron expression.
+            state: Runtime state tracking last matched minute.
+            now: Current UTC datetime.
+
+        Returns:
+            True if the cron expression matches and this minute has
+            not already been matched.
+        """
         current_minute = now.replace(second=0, microsecond=0)
         if state.last_matched_minute == current_minute:
             return False
@@ -132,7 +161,17 @@ class HeartbeatScheduler:
     def _check_file_event(
         self, trigger: FileEventTrigger, state: TriggerState, now: datetime
     ) -> bool:
-        """Polling interval + file change check."""
+        """Polling interval + file change check.
+
+        Args:
+            trigger: FileEventTrigger with path and interval.
+            state: Runtime state (unused here; guards checked upstream).
+            now: Current UTC datetime.
+
+        Returns:
+            True if the polling interval has elapsed and the detector
+            found changed files.
+        """
         last = self._last_check.get(trigger.name)
         if last and (now - last).total_seconds() < trigger.interval_seconds:
             return False
@@ -151,7 +190,13 @@ class HeartbeatScheduler:
     async def _dispatch(
         self, trigger: Trigger, state: TriggerState, now: datetime
     ) -> None:
-        """Send trigger message via bus, update state."""
+        """Send trigger message via bus, update state.
+
+        Args:
+            trigger: The trigger that matched.
+            state: Mutable runtime state to update on success/failure.
+            now: Current UTC datetime used for ``last_fired``.
+        """
         content = trigger.payload
         if (
             isinstance(trigger, FileEventTrigger)

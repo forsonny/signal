@@ -13,34 +13,64 @@ class TriggerGuards(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    cooldown_seconds: int = Field(default=60, ge=0)
-    max_fires: int = Field(default=0, ge=0)  # 0 = unlimited
-    error_threshold: int = Field(default=3, ge=1)
+    cooldown_seconds: int = Field(
+        default=60, ge=0,
+        description="Minimum seconds between consecutive fires.",
+    )
+    max_fires: int = Field(
+        default=0, ge=0,
+        description="Maximum total fires before auto-disable. 0 = unlimited.",
+    )
+    error_threshold: int = Field(
+        default=3, ge=1,
+        description="Consecutive dispatch errors before auto-disable.",
+    )
 
 
 class ClockTrigger(BaseModel):
-    """Time-based trigger using cron expressions."""
+    """Time-based trigger using cron expressions.
+
+    Fires when the current minute matches the 5-field cron expression.
+    Deduplication ensures at most one fire per minute transition.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str
-    cron: str
-    recipient: str
-    payload: str = ""
-    guards: TriggerGuards = Field(default_factory=TriggerGuards)
+    name: str = Field(description="Unique trigger identifier.")
+    cron: str = Field(description="5-field cron expression (min hour dom month dow).")
+    recipient: str = Field(description="Agent name to receive the trigger message.")
+    payload: str = Field(default="", description="Message content sent on fire.")
+    guards: TriggerGuards = Field(
+        default_factory=TriggerGuards,
+        description="Safety guards (cooldown, max_fires, error_threshold).",
+    )
 
 
 class FileEventTrigger(BaseModel):
-    """Polling-based file change trigger."""
+    """Polling-based file change trigger.
+
+    Checks for file changes (via git status or mtime) at a configurable
+    interval. The ``{changed_files}`` placeholder in *payload* is
+    replaced with the comma-separated list of changed paths on fire.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str
-    path: str = "."
-    interval_seconds: int = Field(default=30, ge=5)
-    recipient: str
-    payload: str = ""
-    guards: TriggerGuards = Field(default_factory=TriggerGuards)
+    name: str = Field(description="Unique trigger identifier.")
+    path: str = Field(default=".", description="Directory to watch for changes.")
+    interval_seconds: int = Field(
+        default=30, ge=5,
+        description="Seconds between polling checks.",
+    )
+    recipient: str = Field(description="Agent name to receive the trigger message.")
+    payload: str = Field(
+        default="",
+        description="Message content; use {changed_files} for substitution.",
+    )
+    guards: TriggerGuards = Field(
+        default_factory=TriggerGuards,
+        description="Safety guards (cooldown, max_fires, error_threshold).",
+    )
 
 
 @dataclass
