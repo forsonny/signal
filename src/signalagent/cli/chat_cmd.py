@@ -18,7 +18,12 @@ async def _async_chat(session_id: str | None, instance_dir: Path) -> None:
     """Async REPL loop for interactive conversation.
 
     Imports are deferred to avoid pulling in heavyweight modules
-    at CLI startup -- same pattern as talk_cmd.py.
+    at CLI startup -- same pattern as ``talk_cmd.py``.
+
+    Args:
+        session_id: Existing session ID to resume, or ``None`` to start
+            a new session.
+        instance_dir: Path to the ``.signal/`` instance directory.
     """
     from signalagent.core.config import load_config, load_profile
     from signalagent.runtime.bootstrap import bootstrap
@@ -87,7 +92,15 @@ async def _async_chat(session_id: str | None, instance_dir: Path) -> None:
 def chat(
     session: str | None = typer.Option(None, "--session", "-s", help="Resume a session by ID"),
 ) -> None:
-    """Start an interactive multi-turn conversation."""
+    """Start an interactive multi-turn conversation.
+
+    Args:
+        session: Optional session ID to resume. When ``None``, a new
+            session is created automatically.
+
+    Raises:
+        typer.Exit: If no Signal instance is found in the directory tree.
+    """
     try:
         from signalagent.core.config import find_instance
         instance_dir = find_instance(Path.cwd())

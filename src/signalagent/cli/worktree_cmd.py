@@ -20,6 +20,14 @@ console = Console()
 
 
 def _get_instance_dir() -> Path:
+    """Locate the nearest ``.signal/`` instance directory.
+
+    Returns:
+        Absolute path to the instance directory.
+
+    Raises:
+        typer.Exit: If no instance is found in the directory tree.
+    """
     from signalagent.core.config import find_instance
     try:
         return find_instance(Path.cwd())
@@ -79,7 +87,17 @@ def list_worktrees() -> None:
 def merge_worktree(
     worktree_id: str = typer.Argument(..., help="Worktree ID to merge"),
 ) -> None:
-    """Merge worktree changes into the workspace."""
+    """Merge worktree changes into the workspace.
+
+    Copies changed files from the worktree back to the original workspace
+    and marks the worktree record as ``"merged"``.
+
+    Args:
+        worktree_id: The unique worktree identifier to merge.
+
+    Raises:
+        typer.Exit: If the worktree is not found or not in pending state.
+    """
     instance_dir = _get_instance_dir()
 
     from signalagent.worktrees.manifest import WorktreeManifest
@@ -109,7 +127,16 @@ def merge_worktree(
 def discard_worktree(
     worktree_id: str = typer.Argument(..., help="Worktree ID to discard"),
 ) -> None:
-    """Discard worktree changes without merging."""
+    """Discard worktree changes without merging.
+
+    Removes the worktree directory and marks the record as ``"discarded"``.
+
+    Args:
+        worktree_id: The unique worktree identifier to discard.
+
+    Raises:
+        typer.Exit: If the worktree is not found or not in pending state.
+    """
     instance_dir = _get_instance_dir()
 
     from signalagent.worktrees.manifest import WorktreeManifest

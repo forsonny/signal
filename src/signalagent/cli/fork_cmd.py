@@ -23,7 +23,20 @@ def fork(
         help="Max concurrent branches (0 = use profile default)",
     ),
 ) -> None:
-    """Run multiple approaches in parallel worktrees."""
+    """Run multiple approaches in parallel worktrees.
+
+    Each task string becomes an independent branch executed by a separate
+    agent pipeline. Results are collected and displayed with merge/discard
+    instructions.
+
+    Args:
+        tasks: Task descriptions, one per branch (minimum 2).
+        concurrency: Maximum concurrent branches. ``0`` means use the
+            profile default.
+
+    Raises:
+        typer.Exit: If fewer than 2 tasks or no instance found.
+    """
     if len(tasks) < 2:
         console.print("[red]At least 2 task descriptions required for forking.[/red]")
         raise typer.Exit(1)
@@ -64,7 +77,16 @@ def fork(
 async def _async_fork(
     tasks: list[str], instance_dir: Path, concurrency: int,
 ) -> list:
-    """Async implementation -- deferred imports keep CLI startup fast."""
+    """Async implementation -- deferred imports keep CLI startup fast.
+
+    Args:
+        tasks: Task descriptions, one per branch.
+        instance_dir: Path to the ``.signal/`` instance directory.
+        concurrency: Maximum concurrent branches (``0`` = profile default).
+
+    Returns:
+        List of ``ForkResult`` objects, one per branch.
+    """
     from signalagent.core.config import load_config, load_profile
     from signalagent.runtime.bootstrap import bootstrap
     from signalagent.worktrees.fork import ForkRunner

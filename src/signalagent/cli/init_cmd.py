@@ -16,7 +16,17 @@ console = Console()
 def init(
     profile: str = typer.Option("blank", help="Profile to initialize with"),
 ) -> None:
-    """Initialize a new Signal instance in the current directory."""
+    """Initialize a new Signal instance in the current directory.
+
+    Creates a ``.signal/`` directory and writes config from the named
+    profile.  Exits with code 1 on invalid profile or duplicate instance.
+
+    Args:
+        profile: Name of the built-in profile to initialise with.
+
+    Raises:
+        typer.Exit: On configuration or instance error.
+    """
     instance_dir = Path.cwd() / ".signal"
 
     try:

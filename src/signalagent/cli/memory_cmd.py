@@ -27,7 +27,17 @@ def search_cmd(
     memory_type: str = typer.Option(None, "--type", help="Filter by memory type"),
     limit: int = typer.Option(10, help="Maximum results to return"),
 ) -> None:
-    """Search memories by tags, agent, and type."""
+    """Search memories by tags, agent, and type.
+
+    Args:
+        tags: Comma-separated list of tags to filter by.
+        agent: Agent name to filter results.
+        memory_type: Memory type filter (e.g. ``"learned"``).
+        limit: Maximum number of results to display.
+
+    Raises:
+        typer.Exit: If no Signal instance is found.
+    """
     try:
         from signalagent.core.config import find_instance  # deferred: heavyweight
 
@@ -71,8 +81,25 @@ def search_cmd(
     console.print(table)
 
 
-async def _async_search(instance_dir, tags, agent, memory_type, limit):
-    """Async bridge for search -- deferred imports keep CLI startup fast."""
+async def _async_search(
+    instance_dir: Path,
+    tags: list[str] | None,
+    agent: str | None,
+    memory_type: str | None,
+    limit: int,
+) -> list:
+    """Async bridge for search -- deferred imports keep CLI startup fast.
+
+    Args:
+        instance_dir: Path to the ``.signal/`` instance directory.
+        tags: Optional tag filter.
+        agent: Optional agent-name filter.
+        memory_type: Optional memory-type filter.
+        limit: Maximum number of results.
+
+    Returns:
+        List of ``Memory`` objects matching the criteria.
+    """
     from signalagent.memory.engine import MemoryEngine  # deferred: pulls in aiosqlite
 
     engine = MemoryEngine(instance_dir)
@@ -89,7 +116,14 @@ async def _async_search(instance_dir, tags, agent, memory_type, limit):
 def inspect_cmd(
     memory_id: str = typer.Argument(..., help="Memory ID to inspect"),
 ) -> None:
-    """Inspect a specific memory by ID."""
+    """Inspect a specific memory by ID.
+
+    Args:
+        memory_id: The unique memory identifier to look up.
+
+    Raises:
+        typer.Exit: If no instance is found or the memory does not exist.
+    """
     try:
         from signalagent.core.config import find_instance  # deferred: heavyweight
 
@@ -124,8 +158,16 @@ def inspect_cmd(
     console.print(memory.content)
 
 
-async def _async_inspect(instance_dir, memory_id):
-    """Async bridge for inspect."""
+async def _async_inspect(instance_dir: Path, memory_id: str):
+    """Async bridge for inspect -- deferred imports keep CLI startup fast.
+
+    Args:
+        instance_dir: Path to the ``.signal/`` instance directory.
+        memory_id: The unique memory identifier to look up.
+
+    Returns:
+        A ``Memory`` object, or ``None`` if not found.
+    """
     from signalagent.memory.engine import MemoryEngine  # deferred: pulls in aiosqlite
 
     engine = MemoryEngine(instance_dir)

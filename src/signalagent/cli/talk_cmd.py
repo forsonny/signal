@@ -15,7 +15,16 @@ console = Console()
 
 
 def _run_talk(message: str, instance_dir: Path) -> str:
-    """Run the talk pipeline synchronously (wraps async internals)."""
+    """Run the talk pipeline synchronously (wraps async internals).
+
+    Args:
+        message: User message to send to the agent.
+        instance_dir: Path to the ``.signal/`` instance directory.
+
+    Returns:
+        The agent's response text, or an error string prefixed with
+        ``"Error: "``.
+    """
     return asyncio.run(_async_talk(message, instance_dir))
 
 
@@ -24,8 +33,15 @@ async def _async_talk(message: str, instance_dir: Path) -> str:
 
     Imports are deferred to inside this function to avoid circular imports
     and keep CLI startup fast. The AI layer and executor are heavyweight
-    modules that pull in litellm -- deferring their import means 'signal --help'
-    and 'signal init' don't pay that cost.
+    modules that pull in litellm -- deferring their import means
+    ``signal --help`` and ``signal init`` don't pay that cost.
+
+    Args:
+        message: User message to send to the agent.
+        instance_dir: Path to the ``.signal/`` instance directory.
+
+    Returns:
+        The agent's response text, or an ``"Error: ..."`` string.
     """
     from signalagent.core.config import load_config, load_profile
     from signalagent.runtime.bootstrap import bootstrap  # deferred: heavyweight import
@@ -46,7 +62,14 @@ async def _async_talk(message: str, instance_dir: Path) -> str:
 def talk(
     message: str = typer.Argument(..., help="Message to send"),
 ) -> None:
-    """Send a one-shot message to Signal."""
+    """Send a one-shot message to Signal.
+
+    Args:
+        message: The message to send to the agent.
+
+    Raises:
+        typer.Exit: If no Signal instance is found in the directory tree.
+    """
     try:
         from signalagent.core.config import find_instance  # deferred: see _async_talk docstring
         instance_dir = find_instance(Path.cwd())

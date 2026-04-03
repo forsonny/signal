@@ -23,7 +23,14 @@ console = Console()
 def list_sessions(
     limit: int = typer.Option(20, "--limit", "-n", help="Max sessions to show"),
 ) -> None:
-    """List recent conversation sessions."""
+    """List recent conversation sessions.
+
+    Args:
+        limit: Maximum number of sessions to display.
+
+    Raises:
+        typer.Exit: If no Signal instance is found.
+    """
     try:
         from signalagent.core.config import find_instance
         instance_dir = find_instance(Path.cwd())

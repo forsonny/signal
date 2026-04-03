@@ -33,5 +33,8 @@ _register_commands()
 
 
 def main() -> None:
-    """Entry point for the signal CLI."""
+    """Entry point for the ``signal`` CLI.
+
+    Called by the ``[project.scripts]`` console-script hook.
+    """
     app()
