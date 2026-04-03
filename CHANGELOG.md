@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.14.0] - 2026-04-03
+
+### Added
+- AgentPolicy and SecurityConfig models for declarative per-agent security rules
+- PolicyEngine: pure rules evaluation (check_tool_access, filter_memory_agents, has_policy)
+- AuditLogger: structured JSONL audit trail with tool_call, policy_denial, and warning events
+- AuditEvent model for typed audit entries
+- PolicyHook: fail-closed tool access enforcement via existing hook pipeline
+- PolicyMemoryReader: memory scoping wrapper with post-retrieval filtering
+- "shared" reserved keyword in allow_memory_read for shared memory pool access
+- Warning deduplication in AuditLogger (one warning per agent per process)
+- fail_closed support in HookExecutor and WorktreeProxy (getattr duck-typing)
+
+### Changed
+- Hook protocol: before_tool_call and after_tool_call gain agent: str = "" parameter
+- HookExecutor gains agent: str = "" constructor parameter (per-agent instances at bootstrap)
+- HookExecutor respects fail_closed property on hooks (crash blocks call instead of fail-open)
+- LogToolCallsHook signatures updated with agent parameter (zero behavior change)
+- WorktreeProxy._execute_isolated() passes agent name and respects fail_closed
+- Bootstrap creates per-agent HookExecutor for all micro-agents (shared executor only for sub-agent closures)
+- Bootstrap injects PolicyMemoryReader when security policies are configured
+- Profile gains security: SecurityConfig field (defaults to empty, backward compatible)
+
 ## [0.13.0] - 2026-04-03
 
 ### Added
