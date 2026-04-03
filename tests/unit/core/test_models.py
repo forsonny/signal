@@ -15,6 +15,8 @@ from signalagent.core.models import (
     ForkConfig,
     MemoryConfig,
     MemoryKeeperConfig,
+    AgentPolicy,
+    SecurityConfig,
     Memory,
     Message,
     ToolCallRequest,
@@ -484,3 +486,67 @@ class TestProfileMemoryConfig:
         p = Profile(name="test", memory_keeper=MemoryKeeperConfig())
         assert p.memory_keeper is not None
         assert p.memory_keeper.schedule == "0 3 * * 0"
+
+
+class TestAgentPolicy:
+    def test_minimal(self):
+        policy = AgentPolicy(agent="researcher")
+        assert policy.agent == "researcher"
+        assert policy.allow_tools is None
+        assert policy.allow_memory_read is None
+
+    def test_with_tool_rules(self):
+        policy = AgentPolicy(agent="researcher", allow_tools=["web_search", "file_system"])
+        assert policy.allow_tools == ["web_search", "file_system"]
+
+    def test_with_memory_rules(self):
+        policy = AgentPolicy(agent="researcher", allow_memory_read=["researcher", "shared"])
+        assert policy.allow_memory_read == ["researcher", "shared"]
+
+    def test_full(self):
+        policy = AgentPolicy(
+            agent="researcher",
+            allow_tools=["web_search"],
+            allow_memory_read=["researcher", "shared"],
+        )
+        assert policy.agent == "researcher"
+        assert policy.allow_tools == ["web_search"]
+        assert policy.allow_memory_read == ["researcher", "shared"]
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(Exception):
+            AgentPolicy(agent="researcher", bogus="bad")
+
+
+class TestSecurityConfig:
+    def test_defaults_empty(self):
+        cfg = SecurityConfig()
+        assert cfg.policies == []
+
+    def test_with_policies(self):
+        cfg = SecurityConfig(policies=[
+            AgentPolicy(agent="researcher", allow_tools=["web_search"]),
+            AgentPolicy(agent="coder", allow_tools=["file_system", "bash"]),
+        ])
+        assert len(cfg.policies) == 2
+        assert cfg.policies[0].agent == "researcher"
+
+    def test_rejects_extra_fields(self):
+        with pytest.raises(Exception):
+            SecurityConfig(policies=[], bogus="bad")
+
+
+class TestProfileSecurityConfig:
+    def test_profile_has_security_default(self):
+        p = Profile(name="test")
+        assert isinstance(p.security, SecurityConfig)
+        assert p.security.policies == []
+
+    def test_profile_with_security(self):
+        p = Profile(
+            name="test",
+            security=SecurityConfig(policies=[
+                AgentPolicy(agent="researcher", allow_tools=["web_search"]),
+            ]),
+        )
+        assert len(p.security.policies) == 1
