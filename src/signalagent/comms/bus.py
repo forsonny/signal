@@ -19,7 +19,11 @@ MessageHandler = Callable[[Message], Awaitable[Message | None]]
 
 
 def generate_message_id() -> str:
-    """Generate a unique message ID: msg_ + 8 hex chars."""
+    """Generate a unique message ID: ``msg_`` + 8 hex chars.
+
+    Returns:
+        A string like ``"msg_a1b2c3d4"``.
+    """
     return f"msg_{secrets.token_hex(4)}"
 
 
@@ -35,6 +39,7 @@ class MessageBus:
     """
 
     def __init__(self) -> None:
+        """Initialise an empty message bus with no registered agents."""
         self._permissions: dict[str, set[str] | None] = {}
         self._handlers: dict[str, MessageHandler] = {}
         self._log: list[Message] = []
