@@ -61,6 +61,7 @@ class MemoryReaderProtocol(Protocol):
         memory_type: str | None = None,
         limit: int = 10,
         touch: bool = False,
+        query: str | None = None,
     ) -> list[Any]: ...
 
 
