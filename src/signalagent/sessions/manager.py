@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 
 
 def generate_session_id() -> str:
-    """Generate a unique session ID: ses_ + 8 hex chars."""
+    """Generate a unique session ID: ``ses_`` + 8 hex chars.
+
+    Returns:
+        A string like ``"ses_a1b2c3d4"``.
+    """
     return f"ses_{secrets.token_hex(4)}"
 
 
@@ -26,25 +30,50 @@ class SessionManager:
     """
 
     def __init__(self, sessions_dir: Path) -> None:
+        """Initialise the session manager.
+
+        Args:
+            sessions_dir: Directory for JSONL session files. Created
+                automatically if it does not exist.
+        """
         self._sessions_dir = sessions_dir
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
 
     def create(self) -> str:
-        """Create a new empty session. Returns the session ID."""
+        """Create a new empty session file.
+
+        Returns:
+            The generated session ID.
+        """
         session_id = generate_session_id()
         path = self._sessions_dir / f"{session_id}.jsonl"
         path.touch()
         return session_id
 
     def append(self, session_id: str, turn: Turn) -> None:
-        """Append a turn to the session's JSONL file."""
+        """Append a turn to the session's JSONL file.
+
+        Args:
+            session_id: Target session identifier.
+            turn: Turn to serialise and append.
+        """
         path = self._sessions_dir / f"{session_id}.jsonl"
         line = turn.model_dump_json()
         with open(path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
 
     def load(self, session_id: str) -> list[Turn]:
-        """Load all turns from a session. Returns empty list if not found."""
+        """Load all turns from a session.
+
+        Corrupt lines are logged and skipped.
+
+        Args:
+            session_id: Session to load.
+
+        Returns:
+            List of Turn objects, or an empty list if the session
+            does not exist.
+        """
         path = self._sessions_dir / f"{session_id}.jsonl"
         if not path.exists():
             return []
@@ -60,11 +89,25 @@ class SessionManager:
         return turns
 
     def exists(self, session_id: str) -> bool:
-        """Check if a session file exists."""
+        """Check if a session file exists.
+
+        Args:
+            session_id: Session to check.
+
+        Returns:
+            True if the JSONL file is present on disk.
+        """
         return (self._sessions_dir / f"{session_id}.jsonl").exists()
 
     def list_sessions(self, limit: int = 20) -> list[SessionSummary]:
-        """List recent sessions sorted by modification time (newest first)."""
+        """List recent sessions sorted by modification time (newest first).
+
+        Args:
+            limit: Maximum number of sessions to return.
+
+        Returns:
+            List of SessionSummary objects, newest first.
+        """
         files = sorted(
             self._sessions_dir.glob("ses_*.jsonl"),
             key=lambda p: p.stat().st_mtime,
