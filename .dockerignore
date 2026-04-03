@@ -1,0 +1,10 @@
+.git
+.worktrees
+worktrees
+__pycache__
+*.pyc
+.pytest_cache
+tests/
+docs/
+*.md
+LICENSE
