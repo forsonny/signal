@@ -2,6 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 
+from signalagent.ai.embedding import LiteLLMEmbedding
 from signalagent.agents.host import AgentHost
 from signalagent.agents.micro import MicroAgent
 from signalagent.agents.prime import PrimeAgent
@@ -38,8 +39,17 @@ async def bootstrap(
     bus = MessageBus()
     host = AgentHost(bus)
 
+    # Embedding layer (optional)
+    embedder = None
+    if profile.memory.embedding_model:
+        embedder = LiteLLMEmbedding(model=profile.memory.embedding_model)
+
     # Memory engine
-    engine = MemoryEngine(instance_dir, decay_half_life_days=profile.memory.decay_half_life_days)
+    engine = MemoryEngine(
+        instance_dir,
+        decay_half_life_days=profile.memory.decay_half_life_days,
+        embedder=embedder,
+    )
     await engine.initialize()
 
     model_name = config.ai.default_model
