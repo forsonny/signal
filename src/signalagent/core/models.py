@@ -80,6 +80,22 @@ class MemoryKeeperConfig(BaseModel):
     max_candidates_per_run: int = Field(default=20, ge=1)
 
 
+class AgentPolicy(BaseModel):
+    """Policy rules for a single agent -- tool access and memory scoping."""
+    model_config = ConfigDict(extra="forbid")
+
+    agent: str
+    allow_tools: list[str] | None = None
+    allow_memory_read: list[str] | None = None
+
+
+class SecurityConfig(BaseModel):
+    """Declarative security policies -- allow-list rules per agent."""
+    model_config = ConfigDict(extra="forbid")
+
+    policies: list[AgentPolicy] = Field(default_factory=list)
+
+
 class Profile(BaseModel):
     """A Signal profile -- defines what an instance becomes."""
     model_config = ConfigDict(extra="forbid")
@@ -96,6 +112,7 @@ class Profile(BaseModel):
     fork: ForkConfig = Field(default_factory=ForkConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     memory_keeper: MemoryKeeperConfig | None = None
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
 
 
 class Memory(BaseModel):

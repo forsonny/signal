@@ -14,10 +14,10 @@ class AllowHook:
     @property
     def name(self):
         return self._name
-    async def before_tool_call(self, tool_name, arguments):
+    async def before_tool_call(self, tool_name, arguments, agent=""):
         self.before_calls.append((tool_name, arguments))
         return None
-    async def after_tool_call(self, tool_name, arguments, result, blocked):
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
         self.after_calls.append((tool_name, arguments, result, blocked))
 
 
@@ -27,9 +27,9 @@ class BlockHook:
     @property
     def name(self):
         return "blocker"
-    async def before_tool_call(self, tool_name, arguments):
+    async def before_tool_call(self, tool_name, arguments, agent=""):
         return ToolResult(output="", error=f"Blocked: {self._reason}")
-    async def after_tool_call(self, tool_name, arguments, result, blocked):
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
         pass
 
 
@@ -37,9 +37,9 @@ class CrashingBeforeHook:
     @property
     def name(self):
         return "crasher_before"
-    async def before_tool_call(self, tool_name, arguments):
+    async def before_tool_call(self, tool_name, arguments, agent=""):
         raise RuntimeError("hook crashed")
-    async def after_tool_call(self, tool_name, arguments, result, blocked):
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
         pass
 
 
@@ -47,9 +47,9 @@ class CrashingAfterHook:
     @property
     def name(self):
         return "crasher_after"
-    async def before_tool_call(self, tool_name, arguments):
+    async def before_tool_call(self, tool_name, arguments, agent=""):
         return None
-    async def after_tool_call(self, tool_name, arguments, result, blocked):
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
         raise RuntimeError("after hook crashed")
 
 
@@ -146,3 +146,94 @@ class TestHookExecutorErrorHandling:
         executor = HookExecutor(inner=inner_executor, registry=registry)
         result = await executor("file_system", {})
         assert result.output == "tool result"
+
+
+class FailClosedBeforeHook:
+    @property
+    def name(self):
+        return "fail_closed_before"
+    @property
+    def fail_closed(self):
+        return True
+    async def before_tool_call(self, tool_name, arguments, agent=""):
+        raise RuntimeError("safety hook crashed")
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
+        pass
+
+
+class FailClosedAfterHook:
+    @property
+    def name(self):
+        return "fail_closed_after"
+    @property
+    def fail_closed(self):
+        return True
+    async def before_tool_call(self, tool_name, arguments, agent=""):
+        return None
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
+        raise RuntimeError("safety after hook crashed")
+
+
+class AgentAwareHook:
+    def __init__(self):
+        self.agents_seen: list[str] = []
+    @property
+    def name(self):
+        return "agent_aware"
+    async def before_tool_call(self, tool_name, arguments, agent=""):
+        self.agents_seen.append(agent)
+        return None
+    async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
+        pass
+
+
+class TestHookExecutorFailClosed:
+    @pytest.mark.asyncio
+    async def test_fail_closed_before_blocks_call(self, inner_executor):
+        registry = HookRegistry()
+        registry.register(FailClosedBeforeHook())
+        executor = HookExecutor(inner=inner_executor, registry=registry)
+        result = await executor("file_system", {})
+        assert result.error is not None
+        assert "Policy hook error" in result.error
+        inner_executor.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fail_open_before_allows_call(self, inner_executor):
+        """Existing CrashingBeforeHook (no fail_closed) still fails open."""
+        registry = HookRegistry()
+        registry.register(CrashingBeforeHook())
+        executor = HookExecutor(inner=inner_executor, registry=registry)
+        result = await executor("file_system", {})
+        assert result.output == "tool result"
+        inner_executor.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_fail_closed_after_logs_error(self, inner_executor):
+        """Fail-closed after_tool_call escalates log level but doesn't block result."""
+        registry = HookRegistry()
+        registry.register(FailClosedAfterHook())
+        executor = HookExecutor(inner=inner_executor, registry=registry)
+        result = await executor("file_system", {})
+        # Tool already executed, result still returned
+        assert result.output == "tool result"
+
+
+class TestHookExecutorAgentPassing:
+    @pytest.mark.asyncio
+    async def test_agent_passed_to_hooks(self, inner_executor):
+        registry = HookRegistry()
+        hook = AgentAwareHook()
+        registry.register(hook)
+        executor = HookExecutor(inner=inner_executor, registry=registry, agent="researcher")
+        await executor("file_system", {})
+        assert hook.agents_seen == ["researcher"]
+
+    @pytest.mark.asyncio
+    async def test_agent_defaults_to_empty(self, inner_executor):
+        registry = HookRegistry()
+        hook = AgentAwareHook()
+        registry.register(hook)
+        executor = HookExecutor(inner=inner_executor, registry=registry)
+        await executor("file_system", {})
+        assert hook.agents_seen == [""]

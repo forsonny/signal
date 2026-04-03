@@ -14,6 +14,10 @@ from signalagent.hooks.builtins import load_builtin_hook
 from signalagent.hooks.executor import HookExecutor
 from signalagent.hooks.registry import HookRegistry
 from signalagent.memory.engine import MemoryEngine
+from signalagent.security.audit import AuditLogger
+from signalagent.security.engine import PolicyEngine
+from signalagent.security.memory_filter import PolicyMemoryReader
+from signalagent.security.policy_hook import PolicyHook
 from signalagent.memory.keeper import MemoryKeeperAgent
 from signalagent.heartbeat.cron import validate_cron
 from signalagent.heartbeat.models import ClockTrigger
@@ -78,6 +82,24 @@ async def bootstrap(
         if hook is not None:
             hook_registry.register(hook)
 
+    # Security layer
+    policy_engine = PolicyEngine(profile.security.policies)
+    audit_logger = AuditLogger(instance_dir / "logs")
+
+    # PolicyHook -- conditional: only when policies exist
+    if profile.security.policies:
+        policy_hook = PolicyHook(engine=policy_engine, audit=audit_logger)
+        hook_registry.register(policy_hook)
+
+    # Memory reader: policy-filtered or raw engine
+    def make_memory_reader(agent_name: str):
+        if profile.security.policies:
+            return PolicyMemoryReader(
+                inner=engine, engine=policy_engine,
+                audit=audit_logger, agent=agent_name,
+            )
+        return engine
+
     # Wrap inner executor with hooks
     tool_executor = HookExecutor(inner=inner_executor, registry=hook_registry)
 
@@ -93,7 +115,7 @@ async def bootstrap(
     # future phase, apply global_max cap here too.
     prime = PrimeAgent(
         identity=profile.prime.identity, ai=ai, host=host, bus=bus,
-        memory_reader=engine, model=model_name,
+        memory_reader=make_memory_reader("prime"), model=model_name,
     )
     host.register(prime, talks_to=None)
 
@@ -134,6 +156,7 @@ async def bootstrap(
             # Wrap with hooks
             agent_executor = HookExecutor(
                 inner=agent_inner, registry=hook_registry,
+                agent=micro_config.name,
             )
 
             # Append spawn schema to full list
@@ -161,9 +184,13 @@ async def bootstrap(
                 tool_schemas=full_schemas, max_iterations=agent_max,
             )
         else:
-            # No spawn capability -- use shared executor
+            # No spawn capability -- per-agent executor with agent name
+            agent_hook_executor = HookExecutor(
+                inner=inner_executor, registry=hook_registry,
+                agent=micro_config.name,
+            )
             worktree_proxy = WorktreeProxy(
-                inner=tool_executor,
+                inner=agent_hook_executor,
                 hook_registry=hook_registry,
                 worktree_manager=worktree_manager,
                 manifest=worktree_manifest,
@@ -178,7 +205,8 @@ async def bootstrap(
 
         agent = MicroAgent(
             config=micro_config, runner=runner,
-            memory_reader=engine, model=model_name,
+            memory_reader=make_memory_reader(micro_config.name),
+            model=model_name,
             worktree_proxy=worktree_proxy,
         )
         talks_to = set(micro_config.talks_to)

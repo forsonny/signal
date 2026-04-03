@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 from signalagent.ai.layer import AIResponse
 from signalagent.core.config import SignalConfig
 from signalagent.core.models import (
+    AgentPolicy,
     Profile,
     PrimeConfig,
     MicroAgentConfig,
@@ -13,11 +14,13 @@ from signalagent.core.models import (
     HeartbeatConfig,
     MemoryConfig,
     MemoryKeeperConfig,
+    SecurityConfig,
     ToolCallRequest,
 )
 from signalagent.heartbeat.models import ClockTrigger, TriggerGuards
 from signalagent.core.types import PRIME_AGENT
 from signalagent.runtime.bootstrap import bootstrap
+from signalagent.security.memory_filter import PolicyMemoryReader
 from signalagent.worktrees.proxy import WorktreeProxy
 
 
@@ -553,3 +556,132 @@ class TestEmbeddingBootstrap:
         executor, bus, host = await bootstrap(tmp_path, config, profile_no_micros)
 
         assert executor is not None
+
+
+@pytest.fixture
+def profile_with_policies():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(
+                name="researcher", skill="Research",
+                talks_to=["prime"], plugins=["file_system"],
+            ),
+        ],
+        security=SecurityConfig(policies=[
+            AgentPolicy(
+                agent="researcher",
+                allow_tools=["file_system"],
+                allow_memory_read=["researcher", "shared"],
+            ),
+        ]),
+    )
+
+
+@pytest.fixture
+def profile_without_policies():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        plugins=PluginsConfig(available=["file_system"]),
+        micro_agents=[
+            MicroAgentConfig(
+                name="researcher", skill="Research",
+                talks_to=["prime"], plugins=["file_system"],
+            ),
+        ],
+    )
+
+
+class TestPolicyBootstrap:
+    @pytest.mark.asyncio
+    async def test_policy_memory_reader_injected(
+        self, tmp_path, config, profile_with_policies, monkeypatch,
+    ):
+        """When policies exist, agents get PolicyMemoryReader wrappers."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_policies)
+
+        researcher = host.get("researcher")
+        assert isinstance(
+            researcher._memory_reader,  # type: ignore[union-attr]
+            PolicyMemoryReader,
+        )
+
+        prime = host.get(PRIME_AGENT)
+        assert isinstance(
+            prime._memory_reader,  # type: ignore[union-attr]
+            PolicyMemoryReader,
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_policy_raw_engine(
+        self, tmp_path, config, profile_without_policies, monkeypatch,
+    ):
+        """Without policies, agents get the raw MemoryEngine."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_without_policies)
+
+        researcher = host.get("researcher")
+        assert not isinstance(
+            researcher._memory_reader,  # type: ignore[union-attr]
+            PolicyMemoryReader,
+        )
+
+    @pytest.mark.asyncio
+    async def test_policy_blocks_unauthorized_tool(
+        self, tmp_path, config, profile_with_policies, monkeypatch,
+    ):
+        """End-to-end: PolicyHook blocks a tool call denied by policy."""
+        tc = ToolCallRequest(
+            id="call_1", name="bash",
+            arguments={"command": "echo hello"},
+        )
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("researcher"),
+            _make_ai_response("", tool_calls=[tc]),
+            _make_ai_response("bash was denied"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_policies)
+        result = await executor.run("run a shell command")
+
+        assert result.content == "bash was denied"
+
+    @pytest.mark.asyncio
+    async def test_audit_file_written(
+        self, tmp_path, config, profile_with_policies, monkeypatch,
+    ):
+        """Bootstrap creates audit logger and events are written."""
+        tc = ToolCallRequest(
+            id="call_1", name="file_system",
+            arguments={"operation": "list", "path": "."},
+        )
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(side_effect=[
+            _make_ai_response("researcher"),
+            _make_ai_response("", tool_calls=[tc]),
+            _make_ai_response("Listed files"),
+        ])
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_policies)
+        await executor.run("list files")
+
+        audit_file = tmp_path / "logs" / "audit.jsonl"
+        assert audit_file.exists()
+        import json
+        lines = audit_file.read_text().strip().split("\n")
+        events = [json.loads(line) for line in lines]
+        event_types = [e["event_type"] for e in events]
+        assert "tool_call" in event_types
