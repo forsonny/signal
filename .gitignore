@@ -5,32 +5,6 @@ dist/
 build/
 .venv/
 .signal/
-.superpowers/
-.maker-checkpoints/
-docs/superpowers/
 *.db
 .env
-
-# Design doc directories (reference material, not project code)
-# Prefixed with / so they only match at repo root, not inside src/
-/ai-layer/
-/cli/
-/communication/
-/conversation/
-/forks/
-/heartbeat-daemon/
-/memory-system/
-/micro-agents/
-/overview/
-/plugin-system/
-/prime-agent/
-/profile-system/
-/prompt-construction/
-/runtime/
-/safety/
-/sessions/
-/skill-system/
-/sub-agents/
-/testing/
-/tool-system/
-/worktrees/
+site/
