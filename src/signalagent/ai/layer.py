@@ -1,4 +1,8 @@
-"""AI layer -- unified interface to LLM providers via LiteLLM."""
+"""AI layer -- unified interface to LLM providers via LiteLLM.
+
+Wraps LiteLLM's async completion API to provide a consistent response
+model (AIResponse) regardless of the underlying provider.
+"""
 
 from __future__ import annotations
 
@@ -20,22 +24,31 @@ except AttributeError:
 
 
 class AIResponse(BaseModel):
-    """Unified response from any LLM provider."""
+    """Unified response from any LLM provider.
+
+    Normalises content, token counts, cost, and tool calls into a single
+    model regardless of the upstream provider.
+    """
     model_config = ConfigDict(extra="forbid")
 
-    content: str
-    model: str
-    provider: str
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cost: float = 0.0
-    tool_calls: list[ToolCallRequest] = Field(default_factory=list)
+    content: str = Field(description="Text content of the LLM response.")
+    model: str = Field(description="Model identifier that produced this response.")
+    provider: str = Field(description="Provider prefix extracted from the model string.")
+    input_tokens: int = Field(default=0, description="Number of prompt tokens consumed.")
+    output_tokens: int = Field(default=0, description="Number of completion tokens generated.")
+    cost: float = Field(default=0.0, description="Estimated cost in USD for this call.")
+    tool_calls: list[ToolCallRequest] = Field(default_factory=list, description="Parsed tool call requests from the LLM.")
 
 
 class AILayer:
     """Wraps LiteLLM to provide a unified LLM interface for all agents."""
 
     def __init__(self, config: SignalConfig) -> None:
+        """Initialise the AI layer.
+
+        Args:
+            config: Signal config containing AI model and key settings.
+        """
         self._config = config
 
     async def complete(
