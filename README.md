@@ -8,9 +8,7 @@ Signal gives you a single agent, Prime, that you talk to directly. Behind Prime 
 
 ## Current Status
 
-**Phase 4c of 10 complete.** Micro-agents can now spawn ephemeral sub-agents for task delegation. Sub-agents inherit their parent's tools, execute to completion, and return results as normal tool output. The hook pipeline still intercepts every tool call -- including sub-agent tool calls -- with before/after lifecycle events. Prime routes to specialist micro-agents via the message bus.
-
-See the [roadmap](docs/dev/roadmap.md) for what is coming.
+**All 10 phases complete.** The system is functionally complete and containerized. See the [roadmap](docs/dev/roadmap.md) for the full phase history.
 
 ## Quickstart
 
@@ -27,6 +25,34 @@ export ANTHROPIC_API_KEY=your-key
 uv run signal init --profile blank
 uv run signal talk "hello"
 ```
+
+## Docker
+
+```bash
+# Build the image
+docker build -t signal .
+
+# First run (auto-initializes, then runs your command)
+docker run -e ANTHROPIC_API_KEY=sk-... signal talk "hello"
+
+# Persistent state with a named volume
+docker run -v signal-data:/app/.signal -e ANTHROPIC_API_KEY=sk-... signal talk "hello"
+
+# Multiple API keys via .env file
+docker run -v signal-data:/app/.signal --env-file .env signal talk "hello"
+
+# Interactive chat (requires -it for stdin)
+docker run -it -v signal-data:/app/.signal --env-file .env signal chat
+
+# Custom profile (manual init, then use)
+docker run -v signal-data:/app/.signal signal init --profile devtools
+docker run -v signal-data:/app/.signal --env-file .env signal talk "hello"
+```
+
+**Notes:**
+- `signal chat` requires `docker run -it` (interactive + TTY) or the REPL exits immediately on EOF.
+- The entrypoint auto-initializes with the `blank` profile on first run. For a different profile, run `init` manually first -- the entrypoint skips init when `/app/.signal` already exists.
+- State (memory, sessions, config) lives in `/app/.signal`. Mount a volume to persist it across container restarts.
 
 ## Documentation
 

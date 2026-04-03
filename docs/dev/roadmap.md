@@ -18,7 +18,7 @@
 | 9a | Memory Lifecycle | Complete | Decay multiplier, MemoryKeeper agent, anti-corruption, consolidation |
 | 9b | Memory Embeddings | Complete | Semantic search, vector store, embedding-based retrieval |
 | 10a | Policy + Audit | Complete | Declarative policies, audit trail, fail-closed hooks |
-| 10b | Docker + Full CLI | Planned | Containerization, all commands |
+| 10b | Docker Packaging | Complete | Multi-stage Dockerfile, auto-init entrypoint |
 
 ---
 

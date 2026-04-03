@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.15.0] - 2026-04-03
+
+### Added
+- Multi-stage Dockerfile: builder builds wheel, runtime installs into python:3.12-slim
+- docker-entrypoint.sh: auto-initializes /app/.signal on first run, exec passthrough
+- .dockerignore: excludes .git, tests, docs from build context
+
+### Changed
+- README updated with Docker usage section and current project status
+
 ## [0.14.0] - 2026-04-03
 
 ### Added
