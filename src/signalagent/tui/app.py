@@ -137,7 +137,13 @@ class SignalApp(App):
 
         if text in ("/quit", "/exit"):
             self.exit()
-        elif text == "/history":
+            return
+
+        if self.session_manager is None:
+            chat_log.write_error("Runtime not initialized")
+            return
+
+        if text == "/history":
             for turn in self.session_manager.load(self.session_id):
                 label = "you" if turn.role == "user" else "agent"
                 chat_log.write_system(f"{label}: {turn.content}")

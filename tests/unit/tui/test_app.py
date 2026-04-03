@@ -68,3 +68,83 @@ class TestAppMount:
         async with app.run_test():
             chat_input = app.query_one(ChatInput)
             assert chat_input.has_focus
+
+
+class TestSlashCommands:
+    @pytest.mark.asyncio
+    async def test_quit_exits_app(self, tmp_instance_dir, patch_bootstrap):
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "/quit"
+            await pilot.press("enter")
+            # App should be exiting
+            assert app._exit
+
+    @pytest.mark.asyncio
+    async def test_exit_alias(self, tmp_instance_dir, patch_bootstrap):
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "/exit"
+            await pilot.press("enter")
+            assert app._exit
+
+    @pytest.mark.asyncio
+    async def test_session_shows_id(self, tmp_instance_dir, patch_bootstrap):
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            initial_lines = app.query_one(ChatLog).line_count
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "/session"
+            await pilot.press("enter")
+            assert app.query_one(ChatLog).line_count > initial_lines
+
+    @pytest.mark.asyncio
+    async def test_history_shows_turns(self, tmp_instance_dir, patch_bootstrap):
+        from signalagent.sessions.manager import SessionManager
+        from signalagent.core.models import Turn
+        from datetime import datetime, timezone
+
+        sm = SessionManager(tmp_instance_dir / "data" / "sessions")
+        sid = sm.create()
+        now = datetime.now(timezone.utc)
+        sm.append(sid, Turn(role="user", content="hello", timestamp=now))
+        sm.append(sid, Turn(role="assistant", content="hi there", timestamp=now))
+
+        app = SignalApp(instance_dir=tmp_instance_dir, session_id=sid)
+        async with app.run_test() as pilot:
+            initial_lines = app.query_one(ChatLog).line_count
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "/history"
+            await pilot.press("enter")
+            assert app.query_one(ChatLog).line_count > initial_lines
+
+    @pytest.mark.asyncio
+    async def test_unknown_command_shows_message(self, tmp_instance_dir, patch_bootstrap):
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            initial_lines = app.query_one(ChatLog).line_count
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "/foobar"
+            await pilot.press("enter")
+            assert app.query_one(ChatLog).line_count > initial_lines
+
+    @pytest.mark.asyncio
+    async def test_empty_input_does_nothing(self, tmp_instance_dir, patch_bootstrap):
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            initial_lines = app.query_one(ChatLog).line_count
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "   "
+            await pilot.press("enter")
+            assert app.query_one(ChatLog).line_count == initial_lines
+
+    @pytest.mark.asyncio
+    async def test_input_cleared_after_command(self, tmp_instance_dir, patch_bootstrap):
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "/session"
+            await pilot.press("enter")
+            assert chat_input.value == ""
