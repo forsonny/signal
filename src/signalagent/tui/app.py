@@ -157,6 +157,13 @@ class SignalApp(App):
         """Send user message to executor and display response."""
         chat_log = self.query_one(ChatLog)
 
+        if self.executor is None:
+            chat_log.write_error("Runtime not initialized -- cannot send message")
+            chat_input = self.query_one(ChatInput)
+            chat_input.disabled = False
+            chat_input.focus()
+            return
+
         chat_log.write_user(text)
         result = await self.executor.run(text, session_id=self.session_id)
 

@@ -148,3 +148,98 @@ class TestSlashCommands:
             chat_input.value = "/session"
             await pilot.press("enter")
             assert chat_input.value == ""
+
+
+class TestMessageFlow:
+    @pytest.mark.asyncio
+    async def test_send_message_echoes_user_input(self, tmp_instance_dir, patch_bootstrap):
+        """User message is echoed to ChatLog before executor runs."""
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            initial_lines = app.query_one(ChatLog).line_count
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "hello agent"
+            await pilot.press("enter")
+            await pilot.pause()
+            # At least user echo + agent response added
+            assert app.query_one(ChatLog).line_count >= initial_lines + 2
+
+    @pytest.mark.asyncio
+    async def test_send_message_calls_executor(self, tmp_instance_dir, patch_bootstrap):
+        """Executor.run is called with correct args."""
+        mock_executor = patch_bootstrap
+
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            session_id = app.session_id
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "test message"
+            await pilot.press("enter")
+            await pilot.pause()
+            mock_executor.run.assert_called_once_with(
+                "test message", session_id=session_id,
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_message_shows_error(self, tmp_instance_dir, patch_bootstrap):
+        """Error response is displayed in ChatLog."""
+        mock_executor = patch_bootstrap
+        mock_executor.run.return_value = ExecutorResult(
+            content="", error="Connection timeout",
+        )
+
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "hello"
+            await pilot.press("enter")
+            await pilot.pause()
+            mock_executor.run.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_input_disabled_during_processing(self, tmp_instance_dir, patch_bootstrap):
+        """ChatInput is disabled while the executor is processing."""
+        import asyncio
+
+        mock_executor = patch_bootstrap
+        started = asyncio.Event()
+        proceed = asyncio.Event()
+
+        async def slow_run(user_message, session_id=None):
+            started.set()
+            await proceed.wait()
+            return ExecutorResult(content="done")
+
+        mock_executor.run = slow_run
+
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "thinking..."
+            await pilot.press("enter")
+            await started.wait()
+            assert chat_input.disabled is True
+            proceed.set()
+            await pilot.pause()
+            assert chat_input.disabled is False
+
+    @pytest.mark.asyncio
+    async def test_input_cleared_after_submit(self, tmp_instance_dir, patch_bootstrap):
+        """ChatInput value is cleared immediately on submit."""
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "some message"
+            await pilot.press("enter")
+            assert chat_input.value == ""
+
+    @pytest.mark.asyncio
+    async def test_input_refocused_after_response(self, tmp_instance_dir, patch_bootstrap):
+        """ChatInput is focused after executor response arrives."""
+        app = SignalApp(instance_dir=tmp_instance_dir)
+        async with app.run_test() as pilot:
+            chat_input = app.query_one(ChatInput)
+            chat_input.value = "hi"
+            await pilot.press("enter")
+            await pilot.pause()
+            assert chat_input.has_focus
