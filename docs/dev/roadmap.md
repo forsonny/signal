@@ -17,7 +17,8 @@
 | 8b | Forks | Complete | Parallel approaches, signal fork CLI, semaphore concurrency |
 | 9a | Memory Lifecycle | Complete | Decay multiplier, MemoryKeeper agent, anti-corruption, consolidation |
 | 9b | Memory Embeddings | Complete | Semantic search, vector store, embedding-based retrieval |
-| 10 | Safety + Docker + Full CLI | Planned | Policy engine, containerization, all commands |
+| 10a | Policy + Audit | Complete | Declarative policies, audit trail, fail-closed hooks |
+| 10b | Docker + Full CLI | Planned | Containerization, all commands |
 
 ---
 
