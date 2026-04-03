@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-04-03
+
+### Added
+- EmbeddingProtocol in core/protocols.py for dependency-injected embedding
+- LiteLLMEmbedding wrapping litellm.aembedding() with attribute/dict response handling
+- cosine_similarity pure function for vector comparison
+- Shared scoring module (memory/scoring.py) -- single source of truth for scoring formula
+- memory_embeddings SQLite table with struct-packed BLOB storage
+- MemoryIndex.store_embedding(), get_embedding(), get_all_embeddings()
+- Two-phase semantic search: embedding candidates -> existing scoring formula
+- Relevance slot: tag_score when tags provided, embedding_similarity when query-only
+- MemoryEngine.rebuild_embeddings() with batch backfill
+- embedding_model on MemoryConfig (presence is feature flag)
+- Bootstrap creates LiteLLMEmbedding and injects when embedding_model is set
+
+### Changed
+- MemoryEngine.search() gains query: str | None parameter for semantic search
+- MemoryReaderProtocol.search() gains query: str | None parameter (backward compatible)
+- MemoryEngine constructor accepts embedder parameter
+- MemoryEngine.store() embeds content when embedder present (file-first ordering)
+- MemoryIndex.search() uses shared scoring module (no formula duplication)
+
 ## [0.12.0] - 2026-04-02
 
 ### Added

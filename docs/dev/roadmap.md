@@ -16,7 +16,7 @@
 | 8a | Worktrees | Complete | Isolated workspaces, git worktrees, CLI review |
 | 8b | Forks | Complete | Parallel approaches, signal fork CLI, semaphore concurrency |
 | 9a | Memory Lifecycle | Complete | Decay multiplier, MemoryKeeper agent, anti-corruption, consolidation |
-| 9b | Memory Embeddings | Planned | Semantic search, vector store, embedding-based retrieval |
+| 9b | Memory Embeddings | Complete | Semantic search, vector store, embedding-based retrieval |
 | 10 | Safety + Docker + Full CLI | Planned | Policy engine, containerization, all commands |
 
 ---
