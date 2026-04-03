@@ -12,19 +12,30 @@ class FileSystemTool:
     """Read, write, and list files scoped to a root directory."""
 
     def __init__(self, root: Path, max_read_bytes: int = _DEFAULT_MAX_READ_BYTES) -> None:
+        """Initialise a file-system tool scoped to *root*.
+
+        Args:
+            root: Workspace root directory. All paths are resolved
+                relative to this directory; escapes are rejected.
+            max_read_bytes: Maximum bytes returned by a read before
+                the output is truncated. Defaults to 1 MB.
+        """
         self._root = root.resolve()
         self._max_read_bytes = max_read_bytes
 
     @property
     def name(self) -> str:
+        """Unique tool name used for LLM function calling."""
         return "file_system"
 
     @property
     def description(self) -> str:
+        """Human-readable description shown to the LLM."""
         return "Read, write, and list files within the workspace."
 
     @property
     def parameters(self) -> dict:
+        """JSON Schema for the tool's arguments."""
         return {
             "type": "object",
             "properties": {
@@ -64,6 +75,15 @@ class FileSystemTool:
         return None
 
     async def execute(self, **kwargs) -> ToolResult:
+        """Execute a file-system operation.
+
+        Args:
+            **kwargs: Must include ``operation`` (read/write/list) and
+                ``path``. Write operations also require ``content``.
+
+        Returns:
+            ToolResult with the file content, confirmation, or error.
+        """
         operation = kwargs.get("operation", "")
         path_str = kwargs.get("path", "")
 
@@ -78,6 +98,7 @@ class FileSystemTool:
             return ToolResult(output="", error=f"Unknown operation: '{operation}'")
 
     async def _read(self, path_str: str) -> ToolResult:
+        """Read a file, truncating if it exceeds *max_read_bytes*."""
         resolved = self._resolve_safe(path_str)
         if resolved is None:
             return ToolResult(output="", error="Path outside workspace")
@@ -103,6 +124,7 @@ class FileSystemTool:
         return ToolResult(output=text)
 
     async def _write(self, path_str: str, content: str) -> ToolResult:
+        """Write *content* to a file, creating parent directories as needed."""
         resolved = self._resolve_safe(path_str)
         if resolved is None:
             return ToolResult(output="", error="Path outside workspace")
@@ -112,6 +134,7 @@ class FileSystemTool:
         return ToolResult(output=f"Written: {path_str}")
 
     async def _list(self, path_str: str) -> ToolResult:
+        """List entries in a directory, directories first."""
         resolved = self._resolve_safe(path_str)
         if resolved is None:
             return ToolResult(output="", error="Path outside workspace")

@@ -20,6 +20,14 @@ class SpawnSubAgentTool:
         run_sub: Callable[[str, str], Awaitable[str]],
         parent_name: str,
     ) -> None:
+        """Initialise the spawn tool.
+
+        Args:
+            run_sub: Async callable ``(system_prompt, user_msg) -> str``
+                that executes a sub-agent loop and returns its final text.
+            parent_name: Name of the parent agent, used to derive
+                unique sub-agent identifiers.
+        """
         self._run_sub = run_sub
         self._parent_name = parent_name
         self._counter = 0
@@ -29,14 +37,17 @@ class SpawnSubAgentTool:
 
     @property
     def name(self) -> str:
+        """Unique tool name used for LLM function calling."""
         return "spawn_sub_agent"
 
     @property
     def description(self) -> str:
+        """Human-readable description shown to the LLM."""
         return "Spawn an ephemeral sub-agent to handle a subtask."
 
     @property
     def parameters(self) -> dict:
+        """JSON Schema for the tool's arguments."""
         return {
             "type": "object",
             "properties": {
@@ -53,6 +64,15 @@ class SpawnSubAgentTool:
         }
 
     async def execute(self, **kwargs) -> ToolResult:
+        """Spawn a sub-agent for the requested task.
+
+        Args:
+            **kwargs: Must include ``task`` (the objective) and
+                ``skill`` (the sub-agent's area of expertise).
+
+        Returns:
+            ToolResult containing the sub-agent's final output.
+        """
         task = kwargs.get("task", "")
         skill = kwargs.get("skill", "")
 
