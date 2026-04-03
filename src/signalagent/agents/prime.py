@@ -1,4 +1,8 @@
-"""PrimeAgent -- LLM-based routing with direct handling fallback."""
+"""PrimeAgent -- LLM-based routing with direct handling fallback.
+
+The central agent that receives all user messages. Routes to specialist
+micro-agents when a match is found, otherwise handles directly.
+"""
 
 from __future__ import annotations
 
@@ -38,6 +42,16 @@ class PrimeAgent(BaseAgent):
         memory_reader: MemoryReaderProtocol | None = None,
         model: str = "",
     ) -> None:
+        """Initialise the Prime agent.
+
+        Args:
+            identity: System prompt identity text for direct handling.
+            ai: AI layer for LLM calls (routing and direct handling).
+            host: Agent registry for looking up micro-agents.
+            bus: Message bus for dispatching tasks to micro-agents.
+            memory_reader: Optional memory reader for context injection.
+            model: Model name used to select the memory prompt template.
+        """
         super().__init__(name=PRIME_AGENT, agent_type=AgentType.PRIME)
         self._identity = identity
         self._ai = ai

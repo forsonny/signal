@@ -1,4 +1,8 @@
-"""AgentHost -- agent registry backed by the MessageBus."""
+"""AgentHost -- agent registry backed by the MessageBus.
+
+Provides registration, lookup, and lifecycle management for all agents
+in the runtime.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +19,11 @@ class AgentHost:
     """
 
     def __init__(self, bus: MessageBus) -> None:
+        """Initialise the host with a message bus.
+
+        Args:
+            bus: MessageBus instance for agent handler registration.
+        """
         self._bus = bus
         self._agents: dict[str, BaseAgent] = {}
 
@@ -23,24 +32,45 @@ class AgentHost:
         agent: BaseAgent,
         talks_to: set[str] | None = None,
     ) -> None:
-        """Register agent with host and bus. Sets status to ACTIVE."""
+        """Register agent with host and bus. Sets status to ACTIVE.
+
+        Args:
+            agent: The agent instance to register.
+            talks_to: Set of agent names this agent is allowed to message.
+                None means unrestricted.
+        """
         self._agents[agent.name] = agent
         agent.status = AgentStatus.ACTIVE
         self._bus.register(agent.name, agent.handle, talks_to)
 
     def get(self, name: str) -> BaseAgent | None:
-        """Look up a registered agent by name."""
+        """Look up a registered agent by name.
+
+        Args:
+            name: Agent name to look up.
+
+        Returns:
+            The agent instance, or None if not registered.
+        """
         return self._agents.get(name)
 
     def list_micro_agents(self) -> list[BaseAgent]:
-        """Return all registered specialist agents. Used by Prime for routing."""
+        """Return all registered specialist agents. Used by Prime for routing.
+
+        Returns:
+            List of agents whose type is MICRO or MEMORY_KEEPER.
+        """
         return [
             a for a in self._agents.values()
             if a.agent_type in (AgentType.MICRO, AgentType.MEMORY_KEEPER)
         ]
 
     def unregister(self, name: str) -> None:
-        """Remove agent from host and bus. Sets status to ARCHIVED."""
+        """Remove agent from host and bus. Sets status to ARCHIVED.
+
+        Args:
+            name: Name of the agent to remove.
+        """
         agent = self._agents.pop(name, None)
         if agent is not None:
             agent.status = AgentStatus.ARCHIVED

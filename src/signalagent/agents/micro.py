@@ -1,4 +1,8 @@
-"""MicroAgent -- skill-based specialist agent."""
+"""MicroAgent -- skill-based specialist agent.
+
+Handles tasks by building a skill-specific system prompt, optionally
+injecting retrieved memories, then delegating to an agentic runner.
+"""
 from __future__ import annotations
 
 import logging
@@ -18,7 +22,9 @@ logger = logging.getLogger(__name__)
 
 class MicroAgent(BaseAgent):
     """Specialist agent that handles tasks using a skill-based system prompt.
-    Delegates all LLM interaction to an injected RunnerProtocol."""
+
+    Delegates all LLM interaction to an injected RunnerProtocol.
+    """
 
     def __init__(
         self,
@@ -28,6 +34,15 @@ class MicroAgent(BaseAgent):
         model: str = "",
         worktree_proxy: WorktreeProxyProtocol | None = None,
     ) -> None:
+        """Initialise a MicroAgent.
+
+        Args:
+            config: Agent configuration from the profile.
+            runner: Agentic loop runner for LLM + tool interaction.
+            memory_reader: Optional memory reader for context injection.
+            model: Model name used to select the memory prompt template.
+            worktree_proxy: Optional worktree proxy for fork-based execution.
+        """
         super().__init__(name=config.name, agent_type=AgentType.MICRO)
         self._config = config
         self._runner = runner
@@ -37,6 +52,7 @@ class MicroAgent(BaseAgent):
 
     @property
     def skill(self) -> str:
+        """Return the agent's skill description from config."""
         return self._config.skill
 
     def _build_identity(self) -> str:
