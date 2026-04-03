@@ -67,6 +67,7 @@ class MemoryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     decay_half_life_days: int = Field(default=30, ge=1)
+    embedding_model: str | None = None
 
 
 class MemoryKeeperConfig(BaseModel):

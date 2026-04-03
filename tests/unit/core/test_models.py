@@ -439,6 +439,14 @@ class TestMemoryConfig:
         with pytest.raises(Exception):
             MemoryConfig(unknown="x")
 
+    def test_embedding_model_default_none(self):
+        cfg = MemoryConfig()
+        assert cfg.embedding_model is None
+
+    def test_embedding_model_custom(self):
+        cfg = MemoryConfig(embedding_model="openai/text-embedding-3-small")
+        assert cfg.embedding_model == "openai/text-embedding-3-small"
+
 
 class TestMemoryKeeperConfig:
     def test_defaults(self):

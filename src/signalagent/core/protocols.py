@@ -65,6 +65,15 @@ class MemoryReaderProtocol(Protocol):
 
 
 @runtime_checkable
+class EmbeddingProtocol(Protocol):
+    """Protocol for embedding text into vectors.
+    Bootstrap injects the concrete implementation (LiteLLM default).
+    The protocol allows swapping in local models without changing consumers."""
+
+    async def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+
+@runtime_checkable
 class WorktreeProxyProtocol(Protocol):
     """Protocol for worktree proxy -- agents call take_result() after task completion.
     task_lock() returns an asyncio.Lock for fork branch serialization."""
