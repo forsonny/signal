@@ -1,0 +1,33 @@
+/* Phase A: Focus mode -- vertical stack, chat fills screen. */
+
+Screen {
+    layout: vertical;
+}
+
+#header {
+    dock: top;
+    height: 1;
+    background: $primary-background;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+ChatLog {
+    height: 1fr;
+    scrollbar-size: 1 1;
+}
+
+ChatInput {
+    dock: bottom;
+    height: 3;
+    padding: 1 1;
+}
+
+Footer {
+    dock: bottom;
+}
+
+/* Disabled state for ChatInput while processing */
+ChatInput.-disabled {
+    opacity: 0.5;
+}
