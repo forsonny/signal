@@ -38,7 +38,30 @@ async def bootstrap(
     config: SignalConfig,
     profile: Profile,
 ) -> tuple[Executor, MessageBus, AgentHost]:
-    """Wire up the full multi-agent runtime."""
+    """Wire up the full multi-agent runtime and return its entry points.
+
+    Creates and connects every subsystem: AI layer, message bus, agent host,
+    memory engine, tool registry, hook pipeline, security layer, heartbeat
+    scheduler, session manager, and all agents declared in the profile.
+
+    Args:
+        instance_dir: Root directory for this runtime instance.  Used for
+            logs, data storage, worktrees, and session persistence.
+        config: Global configuration (AI backend, tool limits, etc.).
+        profile: Declarative profile that describes prime/micro agents,
+            plugins, hooks, security policies, memory, and heartbeat
+            triggers.
+
+    Returns:
+        A 3-tuple of ``(Executor, MessageBus, AgentHost)``.
+        *Executor* is the public entry point for sending user messages.
+        *MessageBus* and *AgentHost* are exposed for testing and advanced
+        orchestration.
+
+    Raises:
+        ValueError: If any cron expression in the profile's heartbeat
+            triggers or memory-keeper schedule is invalid.
+    """
     ai = AILayer(config)
     bus = MessageBus()
     host = AgentHost(bus)

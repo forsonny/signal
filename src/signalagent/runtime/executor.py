@@ -22,7 +22,18 @@ __all__ = ["AILayerProtocol", "ExecutorResult", "Executor"]
 
 @dataclass
 class ExecutorResult:
-    """Result of an executor run."""
+    """Result of an executor run.
+
+    Attributes:
+        content: The assistant's response text.  Empty string when an
+            error occurs.
+        error: Human-readable error message, or ``None`` on success.
+        error_type: The exception class name when *error* originates
+            from a caught exception, or ``None`` otherwise.
+        input_tokens: Number of input tokens consumed by the LLM call.
+        output_tokens: Number of output tokens produced by the LLM call.
+        cost: Estimated cost in USD for the LLM call.
+    """
 
     content: str
     error: Optional[str] = None
@@ -44,6 +55,14 @@ class Executor:
         bus: MessageBus,
         session_manager: SessionManager | None = None,
     ) -> None:
+        """Initialise the executor.
+
+        Args:
+            bus: The message bus used to deliver messages to Prime.
+            session_manager: Optional session manager for multi-turn
+                conversation persistence.  When ``None``, any call to
+                :meth:`run` that passes a *session_id* returns an error.
+        """
         self._bus = bus
         self._session_manager = session_manager
 
