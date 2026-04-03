@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import struct
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +10,7 @@ from pathlib import Path
 import aiosqlite
 
 from signalagent.core.models import Memory
+from signalagent.memory.scoring import compute_frequency_score, compute_score
 
 _CREATE_TABLE = """\
 CREATE TABLE IF NOT EXISTS memory_index (
@@ -175,27 +175,24 @@ class MemoryIndex:
             row_tags = set(json.loads(row["tags"]))
 
             if query_tags:
-                tag_score = len(row_tags & query_tags) / len(query_tags)
+                relevance = len(row_tags & query_tags) / len(query_tags)
             else:
-                tag_score = 0.0
+                relevance = 0.0
 
-            frequency_score = min(
-                math.log(row["access_count"] + 1) / 10.0, 1.0
-            )
-
-            base_score = (
-                tag_score * 0.5
-                + frequency_score * 0.25
-                + row["confidence"] * 0.25
-            )
+            frequency_score = compute_frequency_score(row["access_count"])
 
             accessed = datetime.fromisoformat(row["accessed_at"])
             if accessed.tzinfo is None:
                 accessed = accessed.replace(tzinfo=timezone.utc)
             days_since = max((now - accessed).total_seconds() / 86400, 0)
-            decay_factor = 1.0 / (1.0 + days_since / decay_half_life_days)
 
-            row["_score"] = base_score * decay_factor
+            row["_score"] = compute_score(
+                relevance=relevance,
+                frequency_score=frequency_score,
+                confidence=row["confidence"],
+                days_since_access=days_since,
+                decay_half_life_days=decay_half_life_days,
+            )
 
         results.sort(key=lambda r: r["_score"], reverse=True)
         return results[:limit]
