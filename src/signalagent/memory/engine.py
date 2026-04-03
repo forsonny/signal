@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -11,7 +12,11 @@ from signalagent.core.errors import MemoryStoreError
 from signalagent.core.models import Memory
 from signalagent.core.types import MemoryType
 from signalagent.memory.index import MemoryIndex
+from signalagent.memory.scoring import compute_frequency_score, compute_score
+from signalagent.memory.similarity import cosine_similarity
 from signalagent.memory.storage import MemoryStorage
+
+logger = logging.getLogger(__name__)
 
 
 def generate_memory_id() -> str:
@@ -31,11 +36,17 @@ class MemoryEngine:
     at startup -- not recreated per operation.
     """
 
-    def __init__(self, instance_dir: Path, decay_half_life_days: int = 30) -> None:
+    def __init__(
+        self,
+        instance_dir: Path,
+        decay_half_life_days: int = 30,
+        embedder: object | None = None,
+    ) -> None:
         self._memory_dir = instance_dir / "memory"
         self._storage = MemoryStorage(self._memory_dir)
         self._index = MemoryIndex(self._memory_dir / "index.db")
         self._decay_half_life_days = decay_half_life_days
+        self._embedder = embedder
 
     async def initialize(self) -> None:
         """Initialize the SQLite index. Call once at startup."""
@@ -70,13 +81,22 @@ class MemoryEngine:
         )
 
     async def store(self, memory: Memory) -> Memory:
-        """Write memory to disk, then upsert index. Returns the memory.
+        """Write memory to disk, then upsert index, then embed.
 
-        File-first ordering: if index write fails, the file is still
-        on disk and rebuild_index() can recover it.
+        File-first ordering: if index or embedding fails, the file is
+        still on disk and rebuild_index()/rebuild_embeddings() can recover.
         """
         path = self._storage.write(memory)
         await self._index.upsert(memory, path)
+        if self._embedder is not None:
+            try:
+                vectors = await self._embedder.embed([memory.content])
+                await self._index.store_embedding(memory.id, vectors[0])
+            except Exception:
+                logger.warning(
+                    "Embedding failed for %s, memory stored without vector",
+                    memory.id,
+                )
         return memory
 
     async def archive(self, memory_id: str, reason: str) -> None:
@@ -166,13 +186,25 @@ class MemoryEngine:
         memory_type: str | None = None,
         limit: int = 10,
         touch: bool = False,
+        query: str | None = None,
     ) -> list[Memory]:
         """Search index, load full Memory objects for results.
 
+        When query is provided and an embedder is available, uses two-phase
+        retrieval: embedding similarity selects candidates, then the existing
+        scoring formula ranks them. Otherwise falls back to tag-only search.
+
         Args:
             touch: If True, update access stats for returned memories.
-                   Default False -- browsing doesn't inflate scores.
+            query: Text to embed for semantic search. Optional.
         """
+        if query and self._embedder is not None:
+            return await self._search_semantic(
+                query=query, tags=tags, agent=agent,
+                memory_type=memory_type, limit=limit, touch=touch,
+            )
+
+        # Tag-only path (existing behavior)
         results = await self._index.search(
             tags=tags,
             agent=agent,
@@ -180,8 +212,93 @@ class MemoryEngine:
             limit=limit,
             decay_half_life_days=self._decay_half_life_days,
         )
+        return await self._load_results(results, touch=touch)
+
+    async def _search_semantic(
+        self,
+        query: str,
+        tags: list[str] | None,
+        agent: str | None,
+        memory_type: str | None,
+        limit: int,
+        touch: bool,
+    ) -> list[Memory]:
+        """Two-phase retrieval: embed query -> cosine candidates -> score -> rank.
+
+        Uses the shared scoring formula from memory.scoring (same weights as
+        MemoryIndex.search) -- one source of truth for the scoring math.
+        """
+        import json
+
+        # Phase 1: embed query and find candidates
+        query_vectors = await self._embedder.embed([query])
+        query_vector = query_vectors[0]
+
+        all_embeddings = await self._index.get_all_embeddings(
+            agent=agent, include_archived=False,
+        )
+        if not all_embeddings:
+            return []
+
+        # Compute similarities and take top N candidates
+        candidate_limit = limit * 3
+        scored = []
+        for mem_id, vector in all_embeddings:
+            sim = cosine_similarity(query_vector, vector)
+            scored.append((mem_id, sim))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        candidates = scored[:candidate_limit]
+
+        if not candidates:
+            return []
+
+        # Build similarity lookup for Phase 2
+        sim_by_id = {mem_id: sim for mem_id, sim in candidates}
+        candidate_ids = set(sim_by_id.keys())
+
+        # Phase 2: score candidates with shared formula
+        now = datetime.now(timezone.utc)
+        query_tags = set(tags) if tags else set()
+
+        scored_rows: list[dict] = []
+        for mem_id in candidate_ids:
+            row = await self._index.get(mem_id)
+            if row is None or row.get("is_archived", 0):
+                continue
+            if memory_type and row["type"] != memory_type:
+                continue
+
+            row_tags = set(json.loads(row["tags"]))
+            if query_tags:
+                relevance = len(row_tags & query_tags) / len(query_tags)
+            else:
+                relevance = sim_by_id[mem_id]
+
+            frequency_score = compute_frequency_score(row["access_count"])
+
+            accessed = datetime.fromisoformat(row["accessed_at"])
+            if accessed.tzinfo is None:
+                accessed = accessed.replace(tzinfo=timezone.utc)
+            days_since = max((now - accessed).total_seconds() / 86400, 0)
+
+            row["_score"] = compute_score(
+                relevance=relevance,
+                frequency_score=frequency_score,
+                confidence=row["confidence"],
+                days_since_access=days_since,
+                decay_half_life_days=self._decay_half_life_days,
+            )
+            scored_rows.append(row)
+
+        scored_rows.sort(key=lambda r: r["_score"], reverse=True)
+        return await self._load_results(scored_rows[:limit], touch=touch)
+
+    async def _load_results(
+        self, rows: list[dict], touch: bool = False,
+    ) -> list[Memory]:
+        """Load Memory objects from index rows."""
         memories: list[Memory] = []
-        for row in results:
+        for row in rows:
             path = Path(row["file_path"])
             try:
                 memory = self._storage.read(path)
@@ -329,6 +446,43 @@ class MemoryEngine:
                 stale.append((row["id"], reason))
 
         return stale
+
+    async def rebuild_embeddings(self, batch_size: int = 50) -> int:
+        """Backfill embedding vectors for memories that lack them.
+
+        Processes in batches to respect embedding API limits.
+        Returns the count of memories embedded.
+        """
+        if self._embedder is None:
+            return 0
+
+        count = 0
+        batch_ids: list[str] = []
+        batch_contents: list[str] = []
+
+        for file_path, memory in self._storage.scan_all_files():
+            existing = await self._index.get_embedding(memory.id)
+            if existing is not None:
+                continue
+            batch_ids.append(memory.id)
+            batch_contents.append(memory.content)
+
+            if len(batch_contents) >= batch_size:
+                vectors = await self._embedder.embed(batch_contents)
+                for mid, vec in zip(batch_ids, vectors):
+                    await self._index.store_embedding(mid, vec)
+                count += len(batch_ids)
+                batch_ids.clear()
+                batch_contents.clear()
+
+        # Final partial batch
+        if batch_contents:
+            vectors = await self._embedder.embed(batch_contents)
+            for mid, vec in zip(batch_ids, vectors):
+                await self._index.store_embedding(mid, vec)
+            count += len(batch_ids)
+
+        return count
 
     async def close(self) -> None:
         """Close the index connection."""

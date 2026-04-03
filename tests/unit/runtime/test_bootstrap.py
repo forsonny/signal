@@ -11,6 +11,7 @@ from signalagent.core.models import (
     PluginsConfig,
     HooksConfig,
     HeartbeatConfig,
+    MemoryConfig,
     MemoryKeeperConfig,
     ToolCallRequest,
 )
@@ -510,3 +511,45 @@ class TestMemoryKeeperBootstrap:
         triggers = mock_scheduler_cls.call_args[1]["triggers"]
         trigger_names = [t.name for t in triggers]
         assert "memory-keeper-maintenance" in trigger_names
+
+
+@pytest.fixture
+def profile_with_embeddings():
+    return Profile(
+        name="test",
+        prime=PrimeConfig(identity="You are a test prime."),
+        memory=MemoryConfig(embedding_model="openai/text-embedding-3-small"),
+    )
+
+
+class TestEmbeddingBootstrap:
+    @pytest.mark.asyncio
+    async def test_embedder_injected_when_model_set(
+        self, tmp_path, config, profile_with_embeddings, monkeypatch,
+    ):
+        """Bootstrap creates LiteLLMEmbedding when embedding_model is set."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        mock_embedding_cls = MagicMock()
+        monkeypatch.setattr(
+            "signalagent.runtime.bootstrap.LiteLLMEmbedding", mock_embedding_cls,
+        )
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_with_embeddings)
+
+        mock_embedding_cls.assert_called_once_with(model="openai/text-embedding-3-small")
+
+    @pytest.mark.asyncio
+    async def test_no_embedder_when_model_not_set(
+        self, tmp_path, config, profile_no_micros, monkeypatch,
+    ):
+        """Bootstrap does NOT create embedder when embedding_model is None."""
+        mock_ai = AsyncMock()
+        mock_ai.complete = AsyncMock(return_value=_make_ai_response("done"))
+        monkeypatch.setattr("signalagent.runtime.bootstrap.AILayer", lambda config: mock_ai)
+
+        executor, bus, host = await bootstrap(tmp_path, config, profile_no_micros)
+
+        assert executor is not None

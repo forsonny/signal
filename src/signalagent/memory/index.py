@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-import math
+import struct
 from datetime import datetime, timezone
 from pathlib import Path
 
 import aiosqlite
 
 from signalagent.core.models import Memory
+from signalagent.memory.scoring import compute_frequency_score, compute_score
 
 _CREATE_TABLE = """\
 CREATE TABLE IF NOT EXISTS memory_index (
@@ -26,6 +27,14 @@ CREATE TABLE IF NOT EXISTS memory_index (
     file_path     TEXT NOT NULL,
     superseded_by TEXT,
     is_archived   INTEGER NOT NULL DEFAULT 0
+);
+"""
+
+_CREATE_EMBEDDINGS_TABLE = """\
+CREATE TABLE IF NOT EXISTS memory_embeddings (
+    id        TEXT PRIMARY KEY,
+    embedding BLOB NOT NULL,
+    FOREIGN KEY (id) REFERENCES memory_index(id)
 );
 """
 
@@ -60,6 +69,7 @@ class MemoryIndex:
         self._db = await aiosqlite.connect(self._db_path)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute(_CREATE_TABLE)
+        await self._db.execute(_CREATE_EMBEDDINGS_TABLE)
         await self._db.commit()
 
     async def upsert(self, memory: Memory, file_path: str | Path) -> None:
@@ -165,27 +175,24 @@ class MemoryIndex:
             row_tags = set(json.loads(row["tags"]))
 
             if query_tags:
-                tag_score = len(row_tags & query_tags) / len(query_tags)
+                relevance = len(row_tags & query_tags) / len(query_tags)
             else:
-                tag_score = 0.0
+                relevance = 0.0
 
-            frequency_score = min(
-                math.log(row["access_count"] + 1) / 10.0, 1.0
-            )
-
-            base_score = (
-                tag_score * 0.5
-                + frequency_score * 0.25
-                + row["confidence"] * 0.25
-            )
+            frequency_score = compute_frequency_score(row["access_count"])
 
             accessed = datetime.fromisoformat(row["accessed_at"])
             if accessed.tzinfo is None:
                 accessed = accessed.replace(tzinfo=timezone.utc)
             days_since = max((now - accessed).total_seconds() / 86400, 0)
-            decay_factor = 1.0 / (1.0 + days_since / decay_half_life_days)
 
-            row["_score"] = base_score * decay_factor
+            row["_score"] = compute_score(
+                relevance=relevance,
+                frequency_score=frequency_score,
+                confidence=row["confidence"],
+                days_since_access=days_since,
+                decay_half_life_days=decay_half_life_days,
+            )
 
         results.sort(key=lambda r: r["_score"], reverse=True)
         return results[:limit]
@@ -228,6 +235,67 @@ class MemoryIndex:
         )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
+
+    async def store_embedding(self, memory_id: str, vector: list[float]) -> None:
+        """Store an embedding vector as a BLOB."""
+        assert self._db is not None
+        blob = struct.pack(f"{len(vector)}f", *vector)
+        await self._db.execute(
+            "INSERT OR REPLACE INTO memory_embeddings (id, embedding) VALUES (?, ?)",
+            (memory_id, blob),
+        )
+        await self._db.commit()
+
+    async def get_embedding(self, memory_id: str) -> list[float] | None:
+        """Retrieve an embedding vector by memory ID."""
+        assert self._db is not None
+        cursor = await self._db.execute(
+            "SELECT embedding FROM memory_embeddings WHERE id = ?",
+            (memory_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        blob = row[0]
+        count = len(blob) // 4  # 4 bytes per float
+        return list(struct.unpack(f"{count}f", blob))
+
+    async def get_all_embeddings(
+        self,
+        agent: str | None = None,
+        include_archived: bool = False,
+    ) -> list[tuple[str, list[float]]]:
+        """Return (id, vector) pairs for memories with embeddings.
+
+        Uses SQL JOIN to filter by agent and exclude archived --
+        filtering happens in SQL, not after loading BLOBs into Python.
+        """
+        assert self._db is not None
+        conditions = []
+        params: list[str] = []
+
+        if not include_archived:
+            conditions.append("m.is_archived = 0")
+
+        if agent:
+            conditions.append("m.agent = ?")
+            params.append(agent)
+
+        where = " AND ".join(conditions) if conditions else "1=1"
+        query = (
+            "SELECT e.id, e.embedding FROM memory_embeddings e "
+            f"JOIN memory_index m ON e.id = m.id WHERE {where}"
+        )
+        cursor = await self._db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        results: list[tuple[str, list[float]]] = []
+        for row in rows:
+            blob = row[1]
+            count = len(blob) // 4
+            vector = list(struct.unpack(f"{count}f", blob))
+            results.append((row[0], vector))
+        return results
 
     async def close(self) -> None:
         """Close the database connection."""

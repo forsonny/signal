@@ -3,7 +3,7 @@
 import asyncio
 from unittest.mock import AsyncMock
 
-from signalagent.core.protocols import AILayerProtocol, RunnerProtocol, ToolExecutor, WorktreeProxyProtocol
+from signalagent.core.protocols import AILayerProtocol, RunnerProtocol, ToolExecutor, WorktreeProxyProtocol, EmbeddingProtocol
 
 
 class TestAILayerProtocol:
@@ -48,6 +48,20 @@ class TestRunnerProtocolHistory:
         from signalagent.runtime.runner import AgenticRunner
         from signalagent.core.protocols import RunnerProtocol
         assert issubclass(AgenticRunner, RunnerProtocol)
+
+
+class TestEmbeddingProtocol:
+    def test_async_mock_satisfies_protocol(self):
+        from signalagent.core.protocols import EmbeddingProtocol
+        mock = AsyncMock()
+        mock.embed = AsyncMock()
+        assert isinstance(mock, EmbeddingProtocol)
+
+    def test_object_without_embed_fails(self):
+        from signalagent.core.protocols import EmbeddingProtocol
+        class Bad:
+            pass
+        assert not isinstance(Bad(), EmbeddingProtocol)
 
 
 class _FakeWorktreeProxy:

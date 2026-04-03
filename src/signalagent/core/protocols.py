@@ -61,7 +61,17 @@ class MemoryReaderProtocol(Protocol):
         memory_type: str | None = None,
         limit: int = 10,
         touch: bool = False,
+        query: str | None = None,
     ) -> list[Any]: ...
+
+
+@runtime_checkable
+class EmbeddingProtocol(Protocol):
+    """Protocol for embedding text into vectors.
+    Bootstrap injects the concrete implementation (LiteLLM default).
+    The protocol allows swapping in local models without changing consumers."""
+
+    async def embed(self, texts: list[str]) -> list[list[float]]: ...
 
 
 @runtime_checkable
