@@ -106,6 +106,7 @@ class WorktreeProxy:
 
         Hook lifecycle mirrors HookExecutor.__call__: before hooks run first,
         if any blocks we skip the tool, after hooks always fire.
+        Passes agent name and respects fail_closed.
         """
         hooks = self._hook_registry.get_all()
         blocked = False
@@ -114,8 +115,14 @@ class WorktreeProxy:
         # Before hooks
         for hook in hooks:
             try:
-                before_result = await hook.before_tool_call(tool_name, arguments)
+                before_result = await hook.before_tool_call(
+                    tool_name, arguments, agent=self._agent_name,
+                )
             except Exception as e:
+                if getattr(hook, 'fail_closed', False):
+                    return ToolResult(
+                        output="", error=f"Policy hook error: {e}",
+                    )
                 logger.warning(
                     "Hook '%s' before_tool_call raised (fail open): %s",
                     hook.name, e,
@@ -135,9 +142,21 @@ class WorktreeProxy:
         # After hooks (always fire)
         for hook in hooks:
             try:
-                await hook.after_tool_call(tool_name, arguments, result, blocked)
+                await hook.after_tool_call(
+                    tool_name, arguments, result, blocked,
+                    agent=self._agent_name,
+                )
             except Exception as e:
-                logger.warning("Hook '%s' after_tool_call raised: %s", hook.name, e)
+                if getattr(hook, 'fail_closed', False):
+                    logger.error(
+                        "Fail-closed hook '%s' after_tool_call raised: %s",
+                        hook.name, e,
+                    )
+                else:
+                    logger.warning(
+                        "Hook '%s' after_tool_call raised: %s",
+                        hook.name, e,
+                    )
 
         return result
 

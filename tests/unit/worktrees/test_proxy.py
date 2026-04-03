@@ -138,10 +138,10 @@ class TestHooksInIsolatedMode:
 
         class FakeHook:
             name = "test_hook"
-            async def before_tool_call(self, tool_name, arguments):
+            async def before_tool_call(self, tool_name, arguments, agent=""):
                 before_calls.append((tool_name, arguments))
                 return None
-            async def after_tool_call(self, tool_name, arguments, result, blocked):
+            async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
                 after_calls.append((tool_name, arguments, blocked))
 
         proxy._hook_registry.get_all.return_value = [FakeHook()]
@@ -163,9 +163,9 @@ class TestHooksInIsolatedMode:
 
         class BlockingHook:
             name = "blocker"
-            async def before_tool_call(self, tool_name, arguments):
+            async def before_tool_call(self, tool_name, arguments, agent=""):
                 return ToolResult(output="", error="Blocked by policy")
-            async def after_tool_call(self, tool_name, arguments, result, blocked):
+            async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
                 pass
 
         proxy._hook_registry.get_all.return_value = [BlockingHook()]
@@ -188,9 +188,9 @@ class TestHooksInIsolatedMode:
 
         class CrashingHook:
             name = "crasher"
-            async def before_tool_call(self, tool_name, arguments):
+            async def before_tool_call(self, tool_name, arguments, agent=""):
                 raise RuntimeError("hook exploded")
-            async def after_tool_call(self, tool_name, arguments, result, blocked):
+            async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
                 pass
 
         proxy._hook_registry.get_all.return_value = [CrashingHook()]
@@ -287,6 +287,64 @@ class TestTakeResult:
         assert result.is_git is True
         assert result.agent_name == "coder"
         assert result.id.startswith("wt_")
+
+
+class TestIsolatedHookAgentAndFailClosed:
+    """Verify agent name passing and fail_closed in ISOLATED mode hooks."""
+
+    @pytest.mark.asyncio
+    async def test_hooks_receive_agent_name(
+        self, proxy: WorktreeProxy, mock_manager: MagicMock,
+    ) -> None:
+        mock_manager.create.return_value = Path("/tmp/wt")
+        received_agents: list[str] = []
+
+        class AgentCapture:
+            name = "agent_capture"
+            async def before_tool_call(self, tool_name, arguments, agent=""):
+                received_agents.append(("before", agent))
+                return None
+            async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
+                received_agents.append(("after", agent))
+
+        with patch.object(proxy, "_execute_in_worktree", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = ToolResult(output="ok")
+            # First write enters ISOLATED with no hooks
+            proxy._hook_registry.get_all.return_value = []
+            await proxy("file_system", {"operation": "write", "path": "f.py", "content": "x"})
+            # Second call uses our capturing hook
+            proxy._hook_registry.get_all.return_value = [AgentCapture()]
+            await proxy("file_system", {"operation": "read", "path": "f.py"})
+
+        assert ("before", "coder") in received_agents
+        assert ("after", "coder") in received_agents
+
+    @pytest.mark.asyncio
+    async def test_fail_closed_before_hook_crash_blocks_call(
+        self, proxy: WorktreeProxy, mock_manager: MagicMock,
+    ) -> None:
+        mock_manager.create.return_value = Path("/tmp/wt")
+
+        class FailClosedCrasher:
+            name = "policy"
+            fail_closed = True
+            async def before_tool_call(self, tool_name, arguments, agent=""):
+                raise RuntimeError("policy engine down")
+            async def after_tool_call(self, tool_name, arguments, result, blocked, agent=""):
+                pass
+
+        with patch.object(proxy, "_execute_in_worktree", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = ToolResult(output="ok")
+            # Enter ISOLATED with no hooks
+            proxy._hook_registry.get_all.return_value = []
+            await proxy("file_system", {"operation": "write", "path": "f.py", "content": "x"})
+            # Now add fail_closed hook
+            proxy._hook_registry.get_all.return_value = [FailClosedCrasher()]
+            result = await proxy("file_system", {"operation": "write", "path": "g.py", "content": "y"})
+
+        assert result.error == "Policy hook error: policy engine down"
+        # The worktree tool should NOT have been called for the second write
+        assert mock_exec.call_count == 1  # only the first write
 
 
 class TestTaskLock:
