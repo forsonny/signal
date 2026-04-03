@@ -19,17 +19,22 @@ class HookExecutor:
     2. If not blocked: call inner executor. Set blocked=False.
     3. Run after_tool_call on all hooks. Always fires. Pass blocked flag.
     4. Return result.
+
+    Failure modes:
+    - fail-open (default): hook crash is logged and skipped.
+    - fail-closed: hook crash blocks the call. Activated when a hook
+      has a ``fail_closed`` property that returns True.
     """
 
-    # NOTE: Fail-open is correct for observer hooks (log_tool_calls)
-    # where a logging failure should not block work. When safety-gate
-    # hooks land, this should become configurable -- a gate hook that
-    # crashes may indicate a dangerous edge case, and fail-closed
-    # would be safer. For now, all hooks fail open.
-
-    def __init__(self, inner: ToolExecutor, registry: HookRegistry) -> None:
+    def __init__(
+        self,
+        inner: ToolExecutor,
+        registry: HookRegistry,
+        agent: str = "",
+    ) -> None:
         self._inner = inner
         self._registry = registry
+        self._agent = agent
 
     async def __call__(self, tool_name: str, arguments: dict) -> ToolResult:
         hooks = self._registry.get_all()
@@ -39,8 +44,14 @@ class HookExecutor:
         # Before hooks
         for hook in hooks:
             try:
-                before_result = await hook.before_tool_call(tool_name, arguments)
+                before_result = await hook.before_tool_call(
+                    tool_name, arguments, agent=self._agent,
+                )
             except Exception as e:
+                if getattr(hook, 'fail_closed', False):
+                    return ToolResult(
+                        output="", error=f"Policy hook error: {e}",
+                    )
                 logger.warning(
                     "Hook '%s' before_tool_call raised (fail open): %s",
                     hook.name, e,
@@ -60,8 +71,20 @@ class HookExecutor:
         # After hooks (always fire)
         for hook in hooks:
             try:
-                await hook.after_tool_call(tool_name, arguments, result, blocked)
+                await hook.after_tool_call(
+                    tool_name, arguments, result, blocked,
+                    agent=self._agent,
+                )
             except Exception as e:
-                logger.warning("Hook '%s' after_tool_call raised: %s", hook.name, e)
+                if getattr(hook, 'fail_closed', False):
+                    logger.error(
+                        "Fail-closed hook '%s' after_tool_call raised: %s",
+                        hook.name, e,
+                    )
+                else:
+                    logger.warning(
+                        "Hook '%s' after_tool_call raised: %s",
+                        hook.name, e,
+                    )
 
         return result

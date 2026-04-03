@@ -25,12 +25,12 @@ class LogToolCallsHook:
     def name(self) -> str:
         return "log_tool_calls"
 
-    async def before_tool_call(self, tool_name: str, arguments: dict) -> ToolResult | None:
+    async def before_tool_call(self, tool_name: str, arguments: dict, agent: str = "") -> ToolResult | None:
         self._pending_start = time.monotonic()
         return None  # always allows
 
     async def after_tool_call(
-        self, tool_name: str, arguments: dict, result: ToolResult, blocked: bool,
+        self, tool_name: str, arguments: dict, result: ToolResult, blocked: bool, agent: str = "",
     ) -> None:
         duration_ms = 0
         if self._pending_start is not None:
