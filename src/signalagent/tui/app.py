@@ -139,7 +139,7 @@ class SignalApp(App):
             self.exit()
             return
 
-        if self.session_manager is None:
+        if self.session_manager is None or self.session_id is None:
             chat_log.write_error("Runtime not initialized")
             return
 
@@ -164,14 +164,16 @@ class SignalApp(App):
             chat_input.focus()
             return
 
-        chat_log.write_user(text)
-        result = await self.executor.run(text, session_id=self.session_id)
-
-        if result.error:
-            chat_log.write_error(result.error)
-        else:
-            chat_log.write_agent(result.content)
-
-        chat_input = self.query_one(ChatInput)
-        chat_input.disabled = False
-        chat_input.focus()
+        try:
+            chat_log.write_user(text)
+            result = await self.executor.run(text, session_id=self.session_id)
+            if result.error:
+                chat_log.write_error(result.error)
+            else:
+                chat_log.write_agent(result.content)
+        except Exception as e:
+            chat_log.write_error(f"Unexpected error: {e}")
+        finally:
+            chat_input = self.query_one(ChatInput)
+            chat_input.disabled = False
+            chat_input.focus()

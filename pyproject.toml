@@ -44,7 +44,7 @@ path = "src/signalagent/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/signalagent"]
-artifacts = ["src/signalagent/profiles/*.yaml"]
+artifacts = ["src/signalagent/profiles/*.yaml", "src/signalagent/tui/*.tcss"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
