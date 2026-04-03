@@ -28,13 +28,30 @@ class ForkRunner:
         manager: WorktreeManager,
         max_concurrent: int = 2,
     ) -> None:
+        """Create a fork runner.
+
+        Args:
+            executor: The runtime executor used to run each branch.
+            manifest: Worktree manifest for looking up branch records.
+            manager: Worktree manager for querying changed files.
+            max_concurrent: Maximum number of branches that execute
+                simultaneously (controlled by an ``asyncio.Semaphore``).
+        """
         self._executor = executor
         self._manifest = manifest
         self._manager = manager
         self._semaphore = asyncio.Semaphore(max_concurrent)
 
     async def run(self, tasks: list[str]) -> list[ForkResult]:
-        """Run all tasks concurrently and return results."""
+        """Run all tasks concurrently and return results.
+
+        Args:
+            tasks: List of task description strings, one per branch.
+
+        Returns:
+            A list of ``ForkResult`` objects, one per branch, in the
+            same order as *tasks*.
+        """
 
         async def run_branch(index: int, task: str) -> ForkResult:
             async with self._semaphore:

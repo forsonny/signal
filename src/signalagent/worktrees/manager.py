@@ -22,6 +22,12 @@ class WorktreeManager:
     """
 
     def __init__(self, instance_dir: Path, workspace_root: Path) -> None:
+        """Initialise the manager.
+
+        Args:
+            instance_dir: Signal instance directory (``~/.signal/``).
+            workspace_root: Root of the user's project workspace.
+        """
         self._instance_dir = instance_dir
         self._workspace_root = workspace_root
         self._worktrees_dir = instance_dir / "data" / "worktrees"
@@ -29,10 +35,18 @@ class WorktreeManager:
 
     @property
     def is_git(self) -> bool:
+        """Return ``True`` if the workspace is a git repository."""
         return self._is_git
 
     def create(self, name: str) -> Path:
-        """Create a worktree. Returns the worktree path."""
+        """Create a worktree (git branch or directory copy).
+
+        Args:
+            name: Unique name used for the directory and git branch.
+
+        Returns:
+            Absolute path to the newly created worktree.
+        """
         self._worktrees_dir.mkdir(parents=True, exist_ok=True)
         target = self._worktrees_dir / name
         if self._is_git:
@@ -40,19 +54,37 @@ class WorktreeManager:
         return self._create_copy(target)
 
     def diff(self, worktree_path: Path) -> str:
-        """Return unified diff of changes in the worktree."""
+        """Return unified diff of changes in the worktree.
+
+        Args:
+            worktree_path: Absolute path to the worktree directory.
+
+        Returns:
+            Unified diff string (may be empty if no changes).
+        """
         if self._is_git:
             return self._diff_git(worktree_path)
         return self._diff_copy(worktree_path)
 
     def changed_files(self, worktree_path: Path) -> list[str]:
-        """Return sorted list of changed file paths (relative)."""
+        """Return sorted list of changed file paths (relative).
+
+        Args:
+            worktree_path: Absolute path to the worktree directory.
+
+        Returns:
+            Sorted list of workspace-relative paths that differ.
+        """
         if self._is_git:
             return self._changed_files_git(worktree_path)
         return self._changed_files_copy(worktree_path)
 
     def merge(self, worktree_path: Path) -> None:
-        """Copy changed files from worktree to workspace."""
+        """Copy changed files from worktree back to the workspace.
+
+        Args:
+            worktree_path: Absolute path to the worktree directory.
+        """
         files = self.changed_files(worktree_path)
         for rel in files:
             src = worktree_path / rel
@@ -64,7 +96,12 @@ class WorktreeManager:
                 dst.unlink()
 
     def cleanup(self, worktree_path: Path, branch_name: str | None = None) -> None:
-        """Remove worktree directory and prune git references."""
+        """Remove worktree directory and prune git references.
+
+        Args:
+            worktree_path: Absolute path to the worktree to remove.
+            branch_name: Git branch to delete, if applicable.
+        """
         if worktree_path.exists():
             shutil.rmtree(worktree_path)
         if self._is_git:
@@ -159,7 +196,14 @@ class WorktreeManager:
         return changed
 
     def _walk_files(self, root: Path) -> set[str]:
-        """Walk directory, return relative paths, skip IGNORE_DIRS and worktrees dir."""
+        """Walk *root*, returning relative paths while skipping IGNORE_DIRS.
+
+        Args:
+            root: Directory to walk.
+
+        Returns:
+            Set of workspace-relative file path strings.
+        """
         wt_dir = self._worktrees_dir.resolve()
         result: set[str] = set()
         for dirpath, dirnames, filenames in os.walk(root):

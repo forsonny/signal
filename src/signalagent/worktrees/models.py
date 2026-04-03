@@ -8,32 +8,53 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class WorktreeResult(BaseModel):
-    """Returned by WorktreeProxy.take_result() when writes occurred."""
+    """Returned by ``WorktreeProxy.take_result()`` when writes occurred.
+
+    Attributes:
+        id: Unique worktree identifier (e.g. ``"wt_a1b2c3d4"``).
+        worktree_path: Absolute path to the worktree directory.
+        workspace_root: Absolute path to the original workspace.
+        changed_files: Relative paths of files modified in the worktree.
+        diff: Unified diff of all changes against the workspace.
+        agent_name: Name of the agent that produced the changes.
+        is_git: Whether the worktree uses git branching.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    worktree_path: Path
-    workspace_root: Path
-    changed_files: list[str]
-    diff: str
-    agent_name: str
-    is_git: bool
+    id: str = Field(description="Unique worktree identifier (e.g. 'wt_a1b2c3d4').")
+    worktree_path: Path = Field(description="Absolute path to the worktree directory.")
+    workspace_root: Path = Field(description="Absolute path to the original workspace.")
+    changed_files: list[str] = Field(description="Relative paths of files modified in the worktree.")
+    diff: str = Field(description="Unified diff of all changes against the workspace.")
+    agent_name: str = Field(description="Name of the agent that produced the changes.")
+    is_git: bool = Field(description="Whether the worktree uses git branching.")
 
 
 class WorktreeRecord(BaseModel):
-    """Manifest entry tracking worktree lifecycle."""
+    """Manifest entry tracking worktree lifecycle.
+
+    Attributes:
+        id: Unique worktree identifier.
+        worktree_path: Absolute path to the worktree directory.
+        workspace_root: Absolute path to the original workspace.
+        agent_name: Name of the owning agent.
+        created: UTC timestamp when the worktree was created.
+        status: Lifecycle state: ``"pending"`` | ``"merged"`` | ``"discarded"``.
+        is_git: Whether the worktree uses git branching.
+        branch_name: Git branch name, or ``None`` for non-git worktrees.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    worktree_path: Path
-    workspace_root: Path
-    agent_name: str
-    created: datetime
-    status: str  # "pending" | "merged" | "discarded"
-    is_git: bool
-    branch_name: str | None = None
+    id: str = Field(description="Unique worktree identifier.")
+    worktree_path: Path = Field(description="Absolute path to the worktree directory.")
+    workspace_root: Path = Field(description="Absolute path to the original workspace.")
+    agent_name: str = Field(description="Name of the owning agent.")
+    created: datetime = Field(description="UTC timestamp when the worktree was created.")
+    status: str = Field(description="Lifecycle state: 'pending' | 'merged' | 'discarded'.")
+    is_git: bool = Field(description="Whether the worktree uses git branching.")
+    branch_name: str | None = Field(default=None, description="Git branch name, or None for non-git worktrees.")
 
 
 # Regex pattern for extracting worktree ID from agent response text.
@@ -43,14 +64,24 @@ WORKTREE_MERGE_PATTERN: str = r"signal worktree merge (wt_[a-f0-9]+)"
 
 
 class ForkResult(BaseModel):
-    """Result of a single fork branch execution."""
+    """Result of a single fork branch execution.
+
+    Attributes:
+        branch_index: Zero-based index of this branch in the fork.
+        task_description: The task string that was dispatched.
+        response: Raw text response from the agent.
+        worktree_id: Worktree ID extracted from the response, if any.
+        changed_files: Relative paths of files modified by this branch.
+        success: Whether the branch completed without error.
+        error: Error message if *success* is ``False``, else ``None``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    branch_index: int
-    task_description: str
-    response: str
-    worktree_id: str | None = None
-    changed_files: list[str] = Field(default_factory=list)
-    success: bool
-    error: str | None = None
+    branch_index: int = Field(description="Zero-based index of this branch in the fork.")
+    task_description: str = Field(description="The task string that was dispatched.")
+    response: str = Field(description="Raw text response from the agent.")
+    worktree_id: str | None = Field(default=None, description="Worktree ID extracted from the response, if any.")
+    changed_files: list[str] = Field(default_factory=list, description="Relative paths of files modified by this branch.")
+    success: bool = Field(description="Whether the branch completed without error.")
+    error: str | None = Field(default=None, description="Error message if success is False, else None.")

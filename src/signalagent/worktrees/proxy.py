@@ -40,6 +40,17 @@ class WorktreeProxy:
         instance_dir: Path,
         agent_name: str,
     ) -> None:
+        """Create a worktree proxy for a single agent.
+
+        Args:
+            inner: Underlying tool executor (typically ``HookExecutor``).
+            hook_registry: Registry providing before/after hooks.
+            worktree_manager: Manages filesystem worktree operations.
+            manifest: Append-only manifest for worktree records.
+            workspace_root: Root of the user's project workspace.
+            instance_dir: Signal instance directory (``~/.signal/``).
+            agent_name: Name of the agent this proxy serves.
+        """
         self._inner = inner
         self._hook_registry = hook_registry
         self._manager = worktree_manager
@@ -64,6 +75,16 @@ class WorktreeProxy:
         self._lock = asyncio.Lock()
 
     async def __call__(self, tool_name: str, arguments: dict) -> ToolResult:
+        """Execute a tool call, routing file writes to the worktree.
+
+        Args:
+            tool_name: Name of the tool to execute.
+            arguments: Arguments for the tool.
+
+        Returns:
+            The ``ToolResult`` from either the inner executor or the
+            worktree-isolated execution path.
+        """
         # Non-file_system always passes through
         if tool_name != "file_system":
             return await self._inner(tool_name, arguments)
@@ -169,12 +190,20 @@ class WorktreeProxy:
             return ToolResult(output="", error=str(e))
 
     def task_lock(self) -> asyncio.Lock:
-        """Return the task-scoping lock for concurrent branch serialization."""
+        """Return the task-scoping lock for concurrent branch serialization.
+
+        Returns:
+            An ``asyncio.Lock`` that serialises per-task state transitions.
+        """
         return self._lock
 
     def take_result(self) -> WorktreeResult | None:
-        """Return WorktreeResult if writes occurred, None otherwise.
-        Resets state to PASSTHROUGH for the next task."""
+        """Consume and return the worktree result, resetting to PASSTHROUGH.
+
+        Returns:
+            A ``WorktreeResult`` if file writes occurred during the current
+            task, or ``None`` if the proxy never entered ISOLATED mode.
+        """
         if not self._is_isolated or self._worktree_path is None:
             return None
 

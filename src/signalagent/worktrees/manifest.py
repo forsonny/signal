@@ -18,16 +18,30 @@ class WorktreeManifest:
     """
 
     def __init__(self, worktrees_dir: Path) -> None:
+        """Create a manifest backed by *worktrees_dir*/``manifest.jsonl``.
+
+        Args:
+            worktrees_dir: Directory that stores the manifest file.
+                Created on init if it does not exist.
+        """
         self._path = worktrees_dir / "manifest.jsonl"
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
     def append(self, record: WorktreeRecord) -> None:
-        """Append a record to the manifest."""
+        """Append a record to the manifest.
+
+        Args:
+            record: The worktree record to persist.
+        """
         with open(self._path, "a") as f:
             f.write(record.model_dump_json() + "\n")
 
     def load(self) -> dict[str, WorktreeRecord]:
-        """Load all records. Last entry per ID wins."""
+        """Load all records from disk. Last entry per ID wins.
+
+        Returns:
+            Dictionary mapping worktree IDs to their latest record.
+        """
         if not self._path.exists():
             return {}
         records: dict[str, WorktreeRecord] = {}
@@ -43,11 +57,23 @@ class WorktreeManifest:
         return records
 
     def get(self, worktree_id: str) -> WorktreeRecord | None:
-        """Get the resolved record for a worktree ID."""
+        """Get the resolved record for a worktree ID.
+
+        Args:
+            worktree_id: The unique worktree identifier to look up.
+
+        Returns:
+            The matching ``WorktreeRecord``, or ``None`` if not found.
+        """
         return self.load().get(worktree_id)
 
     def list_pending(self) -> list[WorktreeRecord]:
-        """Return pending worktrees, newest first."""
+        """Return pending worktrees, newest first.
+
+        Returns:
+            List of ``WorktreeRecord`` entries with ``status="pending"``,
+            sorted by creation time in descending order.
+        """
         records = self.load()
         return sorted(
             [r for r in records.values() if r.status == "pending"],
